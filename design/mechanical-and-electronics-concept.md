@@ -97,13 +97,13 @@ Quantitative guidance (initial targets):
 **Primary design (recommended for VERIFONE-grade lab tool):**
 
 - **MCU + Ethernet as the motion controller.** The device is the single source of truth for motion and protocol.
-  - Microcontroller: STM32-class MCU with integrated Ethernet MAC + external PHY, and sufficient flash/RAM for motion control and TCP server.
-  - Responsibilities: real-time motion control, sensor handling, and direct implementation of the TCP protocol and state machine.
+  - Microcontroller: STM32-class MCU with integrated Ethernet MAC + external PHY, and sufficient flash/RAM for motion control and REST/HTTP server (HTTPS via on-device TLS or lab gateway).
+  - Responsibilities: real-time motion control, sensor handling, and direct implementation of the REST API and state machine.
 - Benefits: deterministic real-time behavior, no OS/SD-card on the critical path, protocol and behavior stable across labs.
 
 **Alternative (simpler first build or low-cost variant):**
 
-- **Arduino-class MCU over USB** to a host PC. A daemon on the PC implements the TCP server and forwards commands to the device over Serial/USB. The client still connects to a host:port (the PC); API and protocol are unchanged.
+- **Arduino-class MCU over USB** to a host PC. A daemon on the PC implements the REST over HTTPS API and forwards commands to the device over Serial/USB. The client still connects to the daemon’s base URL (the PC); API contract is unchanged.
 - Use when Ethernet-capable MCU or board availability is limited; upgrade path is to move to the primary design.
 
 **Optional later:** A secondary SBC-based gateway can aggregate logs from multiple devices or host dashboards; it is not on the critical motion-control path.
@@ -124,7 +124,7 @@ Quantitative guidance (initial targets):
   - All connected to digital inputs with appropriate debouncing/protection.
 
 - Network interface:
-  - **Primary:** Ethernet port on the MCU (MAC + PHY). **Alternative:** USB to host; TCP is provided by the host daemon.
+  - **Primary:** Ethernet port on the MCU (MAC + PHY). **Alternative:** USB to host; REST/HTTPS is provided by the host daemon.
   - Optionally, a status LED to show link/activity and device state.
 
 ---
@@ -137,7 +137,7 @@ The firmware (on SBC or MCU) is responsible for:
   - Full insert.
   - Full remove.
 - Monitoring sensors and aborting motion on unsafe conditions.
-- Exposing the TCP protocol described in `protocol-and-api-spec.md`.
+- Exposing the REST over HTTPS API described in `protocol-and-api-spec.md`.
 
 Motion sequences (conceptual):
 
@@ -236,7 +236,7 @@ This is a conceptual list; specific part numbers depend on region and supplier.
   - Optional optical card-present sensor.
 
 - Electronics:
-  - **Primary:** STM32-class MCU board with Ethernet (or equivalent). **Alternative:** Arduino-class board + USB; host PC runs TCP daemon.
+  - **Primary:** STM32-class MCU board with Ethernet (or equivalent). **Alternative:** Arduino-class board + USB; host PC runs REST/HTTPS daemon.
   - Stepper motor driver module.
   - 24 VDC power supply (or suitable for chosen motor).
   - Wiring, connectors, terminal blocks, fuses as required.

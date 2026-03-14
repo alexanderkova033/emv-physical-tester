@@ -14,7 +14,7 @@
 - The system acts only as a physical card movement controller. It does not implement EMV test-flow or terminal state logic.
 - The customer wants the interface to be “more standard and high-level”.
 - The interface must allow any tester to easily read or change the request and the response.
-- Control of the physical card movement is done over TCP/IP on the lab network, using a very simple and readable text protocol on top of TCP.
+- Control of the physical card movement is done over the lab network using REST over HTTPS, with JSON request and response bodies that are easy to read and modify.
 - The software interface must be usable from both Java and Kotlin test code.
 
 ### 4. Operation Rate

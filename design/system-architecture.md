@@ -13,13 +13,13 @@ The system automates **physical insertion and removal of EMV contact cards** int
 The system **does not implement EMV or terminal business logic**. It only provides:
 
 - Reliable, repeatable mechanical motion of a card into/out of the reader slot.
-- A simple, TCP-based text protocol for control.
+- A simple, REST over HTTPS API (JSON) for control.
 - A JVM (Kotlin/Java) client API for use in automated tests.
 
 The system is designed to be:
 
 - **Terminal-agnostic**: reconfigurable fixtures/adapters for different terminal models.
-- **Lab-network friendly**: controlled over TCP/IP.
+- **Lab-network friendly**: controlled over HTTPS.
 - **Tester-friendly**: clear, high-level commands and responses.
 
 ---
@@ -35,14 +35,14 @@ To match the priorities of **simple and low-cost assembly** and **a very simple 
    - Hard stops and minimal limit switches only where needed.
 2. **Device Electronics and Firmware Subsystem (Primary: Ethernet-on-Device)**
 
-   - **Primary design:** Microcontroller (STM32-class) with integrated Ethernet, connected directly to the lab network. The device runs the TCP protocol (e.g. port 6000) and motion control on the same MCU. No host daemon required.
+   - **Primary design:** Microcontroller (STM32-class) with integrated Ethernet, connected directly to the lab network. The device runs the REST over HTTPS API and motion control on the same MCU (or behind a lab TLS gateway). No host daemon required.
    - Direct control of a single servo or linear actuator; 1–2 position sensors (home / fully inserted) as needed.
 3. **Host Software Subsystem (JVM Client + Optional Daemon)**
 
    - Kotlin/Java client library:
      - Small, high‑level API: `insertCard()`, `removeCard()`, `status()`, `withInsertedCard { ... }`.
-     - Connects to the device (or daemon) via TCP using the same text protocol.
-   - Optional simulator/fake device that implements the same TCP protocol without hardware.
+     - Connects to the device (or gateway) via HTTPS using the same REST API.
+   - Optional simulator/fake device that implements the same REST API without hardware.
 
 ---
 
@@ -67,7 +67,7 @@ To match the priorities of **simple and low-cost assembly** and **a very simple 
 
 - Drive the actuator(s) with the required current/voltage and motion profile.
 - Read sensors and provide reliable digital signals to the controller.
-- Provide network connectivity to the lab: **primary** = Ethernet or Wi-Fi on device (TCP on device).
+- Provide network connectivity to the lab: **primary** = Ethernet or Wi-Fi on device (REST/HTTPS on device or behind gateway).
 - Provide power distribution and basic protections (fuses, reverse polarity protection as needed).
 
 **Non-Responsibilities**
@@ -83,9 +83,9 @@ To match the priorities of **simple and low-cost assembly** and **a very simple 
   - Controlled insertion to the configured depth and speed.
   - Controlled removal/retraction.
   - Transition to ERROR state on jams, sensor faults, and protocol misuse.
-- Expose a **simple REST over HTTPs**:
-  - Accept commands such as `HOME`, `INSERT`, `REMOVE`, `STATUS`, `ABORT`.
-  - Respond with deterministic `OK` / `ERROR` messages including error codes.
+- Expose a **REST over HTTPS** API:
+  - Endpoints for actions: home, insert, remove, status, abort, reset.
+  - JSON request/response bodies with deterministic `OK` / `ERROR` results and error codes.
 - Perform safety checks and enforce allowed state transitions.
 - Log all commands, transitions, and errors with timestamps for debugging.
 
@@ -99,15 +99,15 @@ To match the priorities of **simple and low-cost assembly** and **a very simple 
 **Responsibilities**
 
 - Provide a **Kotlin-first, Java-friendly** API to:
-  - Connect to the device over TCP/IP.
-  - Issue card movement commands and handle their responses.
+  - Connect to the device over HTTPS (base URL).
+  - Issue card movement commands via REST and handle JSON responses.
   - Represent device state and error conditions in JVM types.
-- Hide the text protocol details from test authors.
+- Hide the REST/JSON details from test authors.
 - Provide integration points for:
   - JUnit/Kotest tests.
   - CI pipelines (e.g., running subsets of EMV L3/local scenarios).
 - Optionally, implement a **simulated device**:
-  - Same protocol surface.
+  - Same REST API surface.
   - In-memory state machine and fake timing.
 
 **Non-Responsibilities**
@@ -119,14 +119,14 @@ To match the priorities of **simple and low-cost assembly** and **a very simple 
 
 ### 4. Deployment Topology
 
-- One or more **Card Inserter Devices** on the lab network. Each device is addressed by **one TCP endpoint** (host:port, e.g. `6000`):
-  - **Primary:** The device has its own IP (Ethernet on MCU); the TCP server runs on the device.
-- EMV / certification tests run on developer machines, CI agents, or dedicated test controllers, and connect via the JVM client library to that TCP endpoint.
+- One or more **Card Inserter Devices** on the lab network. Each device is addressed by **one HTTPS base URL** (e.g. `https://card-inserter-01.lab.local`):
+  - **Primary:** The device has its own IP (Ethernet on MCU); the REST API is served over HTTPS (either on-device TLS or via a lab TLS gateway).
+- EMV / certification tests run on developer machines, CI agents, or dedicated test controllers, and connect via the JVM client library to that base URL.
 
 Example topology:
 
-- `card-inserter-01.lab.local:6000` – used by CI pipeline for standard regression.
-- `card-inserter-02.lab.local:6000` – used for manual experiments and local certification runs.
+- `https://card-inserter-01.lab.local` – used by CI pipeline for standard regression.
+- `https://card-inserter-02.lab.local` – used for manual experiments and local certification runs.
 
 ---
 
@@ -163,13 +163,13 @@ Recovery rules (high level):
 - From `POWER_RECOVERY`:
   - Firmware infers a conservative state (e.g., assume card is still present) and requires an explicit recovery motion (implementation detail documented in firmware spec).
 
-The TCP `STATUS` command exposes:
+The REST `GET /api/status` endpoint exposes:
 
 - Current state.
 - Last error code and message (if any).
 - Telemetry hints (e.g., last motion time).
 
-The protocol additionally supports **asynchronous events** (see `protocol-and-api-spec.md`) to notify clients about:
+The API additionally supports **asynchronous events** via Server-Sent Events (see `protocol-and-api-spec.md`) to notify clients about:
 
 - State changes.
 - Faults (e.g., E-stop, sensor fault, jam).
@@ -275,5 +275,5 @@ Operational aspects (to be elaborated in procedures outside this document):
 
 This document defines the **system-level architecture and responsibilities**. See:
 
-- `protocol-and-api-spec.md` for the TCP protocol and JVM API contracts.
+- `protocol-and-api-spec.md` for the REST over HTTPS API and JVM API contracts.
 - `mechanical-and-electronics-concept.md` for the physical implementation concept.

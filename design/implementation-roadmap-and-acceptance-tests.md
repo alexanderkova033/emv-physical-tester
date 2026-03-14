@@ -8,15 +8,15 @@ This document turns the architecture into a concrete plan and defines how to **p
 
 ### 2. Implementation Roadmap (Phased)
 
-#### Phase 1 – Protocol, API, and Simulator
+#### Phase 1 – REST API, Client, and Simulator
 
 - Deliverables:
   - Reference implementation of:
-    - TCP protocol parser/serializer.
+    - REST over HTTPS client (JSON request/response handling).
     - JVM client (`CardInserterClient` and related types).
-  - Deterministic simulator implementing the same protocol and state machine.
+  - Deterministic simulator implementing the same REST API and state machine.
 - Success criteria:
-  - All protocol/API unit and integration tests pass against the simulator.
+  - All API unit and integration tests pass against the simulator.
   - EMV test teams can write and run basic “simulated card insertion” tests in CI.
 
 #### Phase 2 – First Mechanical/Electronics Prototype (Single Terminal Model)
@@ -26,8 +26,8 @@ This document turns the architecture into a concrete plan and defines how to **p
   - Electronics board with STM32-class MCU, Ethernet, motor driver, sensors, and power.
   - Basic firmware:
     - Homing.
-    - INSERT/REMOVE sequences.
-    - STATUS and ERROR reporting.
+    - Insert/remove sequences via REST endpoints.
+    - Status and error reporting (JSON).
 - Success criteria:
   - Repeated insertion/removal at 1–2 cycles/min for at least 5,000 cycles without mechanical failure.
   - Measured insertion depth and alignment within the specified tolerances.
@@ -38,10 +38,10 @@ This document turns the architecture into a concrete plan and defines how to **p
   - Full state machine including:
     - ERROR, ESTOP, POWER_RECOVERY handling.
     - `RESET` and `ABORT` semantics as in protocol spec.
-  - Asynchronous `EVENT` support (state changes, faults).
+  - Asynchronous event support via SSE (state changes, faults).
   - Configuration profiles for the reference terminal model.
 - Success criteria:
-  - Firmware passes the **protocol/state conformance test suite** (see below).
+  - Firmware passes the **REST API and state conformance test suite** (see below).
   - All safety behaviors verified: E-stop, sensor faults, jams, and power loss.
 
 #### Phase 4 – Multi-Terminal Support and Lab Integration
@@ -57,13 +57,13 @@ This document turns the architecture into a concrete plan and defines how to **p
 
 ---
 
-### 3. Protocol and Firmware Conformance Tests
+### 3. REST API and Firmware Conformance Tests
 
 For each firmware build, run a conformance suite (automated from JVM side):
 
 - **State machine tests**
   - Valid sequences: `BOOTING → HOMING → IDLE → INSERTING → INSERTED → REMOVING → IDLE`.
-  - Illegal commands in each state (e.g., `INSERT` during `HOMING`) must return `ILLEGAL_STATE`.
+  - Illegal commands in each state (e.g., insert during HOMING) must return `ILLEGAL_STATE`.
   - `RESET` correctly recovers from `ERROR` where possible.
 
 - **Error and fault tests**
@@ -75,7 +75,7 @@ For each firmware build, run a conformance suite (automated from JVM side):
     - `STATUS` continues to work.
 
 - **Versioning and feature tests**
-  - `STATUS` returns `protocol_version`, `min_compatible_protocol_version`, and `features`.
+  - `GET /api/status` returns `protocol_version`, `min_compatible_protocol_version`, and `features`.
   - Client behaves correctly if:
     - Device has a newer protocol with extra fields.
     - Device is older than client’s minimum supported version (test for graceful refusal).

@@ -1,227 +1,216 @@
-## TCP Protocol and JVM API Specification
+## REST over HTTPS Protocol and JVM API Specification
 
 ### 1. Goals
 
-- Provide a **simple, readable text protocol** over TCP/IP to control the card inserter.
-- Ensure the protocol is **easy to debug manually** (via netcat/telnet-like tools).
+- Provide a **simple, standards-based REST API over HTTPS** to control the card inserter.
+- Ensure the API is **easy to debug** (via curl, Postman, or browser dev tools).
+- Use **JSON** for request and response bodies so any tester can easily read or change them.
 - Provide a **type-safe Kotlin API** that is also easy to use from Java-based tests.
 
-The protocol is **request–response, line-oriented**, with one response per command.
+The API is **request–response**: each action is an HTTP request; the response carries the result. Asynchronous events are available via Server-Sent Events (SSE).
 
 ---
 
 ### 2. Connection Model
 
-- Transport: **TCP**.
-- Default port: **6000** (configurable in firmware).
-- Encoding: **UTF-8**.
-- Line terminator: `\n` (LF). `\r\n` SHOULD also be accepted by the device.
-- Client initiates the connection; device accepts multiple connections but processes **commands sequentially per connection**.
+- Transport: **HTTPS** (TLS 1.2 or later).
+- Default port: **443** (configurable in firmware or lab gateway).
+- Base URL: `https://<host>[:port]/api` (e.g. `https://card-inserter-01.lab.local/api`).
+- Content type: **application/json** for request and response bodies.
+- Character encoding: **UTF-8**.
 
 Timeouts:
-- Client-side **command timeout** is configurable in the JVM API (e.g. default 10 seconds).
-- Device may disconnect idle clients after a configurable idle period.
+- Client-side **request timeout** is configurable in the JVM API (e.g. default 10 seconds).
+- Device or gateway may close idle connections after a configurable idle period.
 
 Asynchronous events:
-- The device MAY send **unsolicited, asynchronous `EVENT` lines** to clients to report:
+- The device exposes **Server-Sent Events (SSE)** at `GET /api/events` to report:
   - State changes.
   - Faults (e.g., E-stop, sensor fault).
   - Reservation/lock changes.
-- Each event is a single line and does not break the request–response model (clients must be able to distinguish `RESULT` from `EVENT`).
+- Clients that need real-time notifications subscribe to this stream; others may poll `GET /api/status` if preferred.
+
+**TLS:** For lab use, TLS can be provided either (1) directly by the device (e.g. lightweight TLS stack on the MCU) or (2) by a lab reverse proxy/gateway in front of the device. The client always connects over HTTPS to a single base URL.
 
 ---
 
 ### 3. Message Format
 
-#### 3.1 Requests (Commands)
+#### 3.1 General Conventions
 
-- One command per line.
-- Format:
+- **Requests:** JSON body with optional `id` for correlation; other fields are command-specific.
+- **Responses:** JSON object with:
+  - `id` – same as request (if present).
+  - `status` – `"OK"` or `"ERROR"`.
+  - For success: command-specific fields (e.g. `state`, `motion_time_ms`).
+  - For error: `error_code`, and optionally `error_message`.
 
-  `<COMMAND_NAME> [arg1=value1 arg2=value2 ...] [# optional comment]`
+All endpoints return appropriate HTTP status codes:
+- **200 OK** – Command succeeded (body contains result).
+- **400 Bad Request** – Malformed request or invalid parameters.
+- **409 Conflict** – Command not allowed in current state (maps to `ILLEGAL_STATE`).
+- **500 Internal Server Error** – Device error (body includes `error_code`).
+- **503 Service Unavailable** – E-stop asserted or device unavailable.
 
-- Command name: uppercase ASCII letters + optional underscores.
-- Arguments:
-  - Key: lowercase letters and underscores.
-  - Value: string without whitespace or `#`. If a value requires spaces, it can be quoted, but the initial version should avoid that.
-- Anything after `#` is a comment and ignored.
+#### 3.2 Correlation ID
 
-Example commands:
-- `HOME id=1`
-- `INSERT id=2 depth_mm=35 speed_mm_s=20`
-- `REMOVE id=3`
-- `STATUS id=4`
-- `ABORT id=5`
-
-#### 3.2 Responses
-
-- One response line per command.
-- Format:
-
-  `RESULT id=<id> status=<OK|ERROR> [key=value ...]`
-
-- `id` MUST be the same value sent in the request (if present).
-- If `status=ERROR`, an error code MUST be present:
-  - `error_code=<CODE>` and optionally `error_message="..."` (no spaces recommended initially).
-
-Example responses:
-- `RESULT id=1 status=OK state=READY`
-- `RESULT id=2 status=OK state=INSERTED motion_time_ms=2300`
-- `RESULT id=5 status=ERROR error_code=ILLEGAL_STATE state=ERROR`
-
-#### 3.3 Asynchronous Events
-
-- Event lines provide out-of-band notifications:
-
-  `EVENT type=<TYPE> [key=value ...]`
-
-- Common event types:
-  - `STATE_CHANGED` – `old_state=<STATE> new_state=<STATE>`
-  - `FAULT` – `error_code=<CODE> error_message=<string>` (e.g., `CARD_JAM`, `ESTOP_ASSERTED`)
-  - `RESERVATION` – `owner=<string> action=<ACQUIRED|RELEASED|EXPIRED>`
-
-**Device reservation (single controller per device):** Only one logical test session should control a device at a time. Implementations may use one of: (1) **First connection wins** – the first client that connects holds logical ownership until disconnect; other connections get read-only or rejected. (2) **Explicit RESERVE/RELEASE** – optional commands `RESERVE id=<id> owner=<string> [lease_sec=<int>]` and `RELEASE id=<id>` to acquire/release a lock; device emits `EVENT type=RESERVATION` on change. The JVM client or lab scheduler must enforce exclusive use (e.g. by connecting only one test runner per device or by calling RESERVE before use).
-
-Example events:
-- `EVENT type=STATE_CHANGED old_state=IDLE new_state=INSERTING`
-- `EVENT type=FAULT error_code=CARD_JAM error_message=Near_end_of_travel`
+- Request bodies may include `"id": <number>` or `"id": "<string>"` for correlation.
+- The response MUST echo the same `id` when present.
 
 ---
 
-### 4. Command Set (Initial Version)
+### 4. REST Resource Set (Initial Version)
 
-#### 4.1 `HOME`
+#### 4.1 Home
 
 **Purpose**: Move the mechanism to a known reference position (home).
 
-Request:
-- `HOME id=<int>`
+- **Endpoint:** `POST /api/home`
+- **Request body:**
 
-Behavior:
-- If already homed and in a safe state, device may either:
-  - Do nothing and respond quickly.
-  - Or re-home for additional assurance.
-- During homing, state transitions:
-  - `IDLE` → `HOMING` → `IDLE` (or `ERROR` on failure).
+```json
+{ "id": 1 }
+```
 
-Response:
-- On success:
-  - `RESULT id=<id> status=OK state=IDLE`
-- On failure (e.g., home sensor not found):
-  - `RESULT id=<id> status=ERROR error_code=HOME_FAILED state=ERROR`
+- **Behavior:** If already homed and in a safe state, device may do nothing and respond quickly or re-home. State transitions: `IDLE` → `HOMING` → `IDLE` (or `ERROR` on failure).
+- **Response (200):**
 
-#### 4.2 `INSERT`
+```json
+{ "id": 1, "status": "OK", "state": "IDLE" }
+```
+
+- **Response (error):**
+
+```json
+{ "id": 1, "status": "ERROR", "error_code": "HOME_FAILED", "state": "ERROR" }
+```
+
+#### 4.2 Insert
 
 **Purpose**: Insert the card into the terminal slot to a given depth at a given speed.
 
-Request:
-- `INSERT id=<int> depth_mm=<int> [speed_mm_s=<int>]`
+- **Endpoint:** `POST /api/insert`
+- **Request body:**
 
-Parameters:
-- `depth_mm`: nominal insertion depth in millimeters (required).
-- `speed_mm_s`: nominal speed in mm/s (optional; default is device-configured).
+```json
+{ "id": 2, "depth_mm": 35, "speed_mm_s": 20 }
+```
 
-Preconditions:
-- Device must be in `IDLE` or `INSERTED`-compatible state.
+- `depth_mm` (required): nominal insertion depth in millimeters.
+- `speed_mm_s` (optional): nominal speed in mm/s; default is device-configured.
+- **Preconditions:** Device must be in `IDLE` or compatible state.
+- **Response (200):**
 
-Idempotency and safety:
-- Repeated `INSERT` with the same parameters while in `INSERTED` SHOULD be treated as a no-op that returns `status=OK state=INSERTED` (unless unsafe).
+```json
+{ "id": 2, "status": "OK", "state": "INSERTED", "motion_time_ms": 2300 }
+```
 
-Response:
-- On success:
-  - `RESULT id=<id> status=OK state=INSERTED motion_time_ms=<int>`
-- On failure:
-  - `RESULT id=<id> status=ERROR error_code=<CODE> state=ERROR|IDLE`
+- **Response (error):**
 
-Potential error codes:
-- `ILLEGAL_STATE` – command issued in an incompatible state.
-- `MOTION_TIMEOUT` – motion did not complete in time.
-- `CARD_JAM` – unexpected obstruction or stall detected.
+```json
+{ "id": 2, "status": "ERROR", "error_code": "ILLEGAL_STATE", "state": "ERROR" }
+```
 
-#### 4.3 `REMOVE`
+- Potential error codes: `ILLEGAL_STATE`, `MOTION_TIMEOUT`, `CARD_JAM`.
+
+#### 4.3 Remove
 
 **Purpose**: Retract the card from the terminal slot.
 
-Request:
-- `REMOVE id=<int>`
+- **Endpoint:** `POST /api/remove`
+- **Request body:**
 
-Behavior:
-- Retracts the carriage back to the safe/retracted position.
+```json
+{ "id": 3 }
+```
 
-Idempotency:
-- If the device is already in a state where the card is retracted (`IDLE` after homing), `REMOVE` SHOULD behave as a no-op and still return `status=OK state=IDLE`.
+- **Response (200):**
 
-Response:
-- On success:
-  - `RESULT id=<id> status=OK state=IDLE motion_time_ms=<int>`
-- On failure:
-  - `RESULT id=<id> status=ERROR error_code=<CODE> state=ERROR|IDLE`
+```json
+{ "id": 3, "status": "OK", "state": "IDLE", "motion_time_ms": 1800 }
+```
 
-#### 4.4 `STATUS`
+- **Response (error):** Same pattern with `error_code` and `state`.
+
+#### 4.4 Status
 
 **Purpose**: Query current device state and last error.
 
-Request:
-- `STATUS id=<int>`
+- **Endpoint:** `GET /api/status`
+- **Query parameters (optional):** `id` for correlation in response.
+- **Response (200):**
 
-Response:
-- On success:
-  - `RESULT id=<id> status=OK state=<STATE> last_error_code=<CODE|NONE> last_error_message=<string_or_NONE>`
+```json
+{
+  "id": 4,
+  "status": "OK",
+  "state": "INSERTED",
+  "last_error_code": "NONE",
+  "last_error_message": "NONE",
+  "protocol_version": 1,
+  "min_compatible_protocol_version": 1,
+  "features": ["EVENTS", "RESET"]
+}
+```
 
-Example:
-- `RESULT id=4 status=OK state=INSERTED last_error_code=NONE last_error_message=NONE`
-
-#### 4.5 `ABORT`
+#### 4.5 Abort
 
 **Purpose**: Immediately stop current motion and attempt to move to a safe condition.
 
-Request:
-- `ABORT id=<int>`
+- **Endpoint:** `POST /api/abort`
+- **Request body:**
 
-Behavior:
-- Device stops motion as quickly as safely possible.
-- Device may transition to `ERROR` or `IDLE` depending on implementation.
+```json
+{ "id": 5 }
+```
 
-Response:
-- On success:
-  - `RESULT id=<id> status=OK state=<STATE_AFTER_ABORT>`
-- On failure:
-  - `RESULT id=<id> status=ERROR error_code=<CODE> state=ERROR`
+- **Response (200):**
 
-Semantics:
-- `ABORT` MUST:
-  - Never drive the carriage further into the terminal than the position it had when the abort was processed.
-  - Prefer retracting slightly or holding position depending on safety configuration.
+```json
+{ "id": 5, "status": "OK", "state": "IDLE" }
+```
 
-#### 4.6 `RESET`
+- **Semantics:** ABORT MUST never drive the carriage further into the terminal than the position at abort; prefer retracting or holding per safety configuration.
 
-**Purpose**: Clear an `ERROR` or `ESTOP` condition (if safe) and return the device to a known initial state.
+#### 4.6 Reset
 
-Request:
-- `RESET id=<int>`
+**Purpose**: Clear an `ERROR` or `ESTOP` condition (if safe) and return to a known initial state.
 
-Behavior:
-- If in `ERROR`, attempts a conservative homing or recovery sequence.
-- If E-stop is asserted, `RESET` returns an error until E-stop is physically released.
+- **Endpoint:** `POST /api/reset`
+- **Request body:**
 
-Response:
-- On success:
-  - `RESULT id=<id> status=OK state=IDLE`
-- On failure:
-  - `RESULT id=<id> status=ERROR error_code=<CODE> state=ERROR`
+```json
+{ "id": 6 }
+```
+
+- **Response (200):** `{ "id": 6, "status": "OK", "state": "IDLE" }`
+- **Response (error):** If E-stop still asserted, returns error until E-stop is physically released.
+
+#### 4.7 Asynchronous Events (SSE)
+
+- **Endpoint:** `GET /api/events`
+- **Accept:** `text/event-stream`
+- **Behavior:** Server sends Server-Sent Events. Each event is a JSON object (one per line after `data: `).
+
+Event types:
+- **STATE_CHANGED** – `{ "type": "STATE_CHANGED", "old_state": "IDLE", "new_state": "INSERTING" }`
+- **FAULT** – `{ "type": "FAULT", "error_code": "CARD_JAM", "error_message": "Near_end_of_travel" }`
+- **RESERVATION** – `{ "type": "RESERVATION", "owner": "<string>", "action": "ACQUIRED" | "RELEASED" | "EXPIRED" }`
+
+**Device reservation:** Only one logical test session should control a device at a time. Implementations may use (1) **First client wins** – first successful command holder has logical ownership until disconnect, or (2) **Explicit reserve/release** – optional `POST /api/reserve` and `POST /api/release` with `owner` and optional `lease_sec`; device emits RESERVATION events on change. The JVM client or lab scheduler must enforce exclusive use.
 
 ---
 
 ### 5. Error Codes (Initial Set)
 
-Error codes are short, uppercase identifiers:
+Error codes are short, uppercase string identifiers:
 
 - `ILLEGAL_STATE` – Command not allowed in current state.
 - `HOME_FAILED` – Homing did not complete successfully.
 - `MOTION_TIMEOUT` – Motion exceeded time budget.
 - `CARD_JAM` – Jam or obstruction detected.
 - `SENSOR_FAULT` – Sensor value inconsistent or out of expected range.
-- `PROTOCOL_ERROR` – Malformed command or missing argument.
+- `PROTOCOL_ERROR` – Malformed request or missing required field.
 - `INTERNAL_ERROR` – Unspecified device-side error.
 - `ESTOP_ASSERTED` – Emergency stop input active; motion commands rejected.
 - `UNSAFE_CONFIGURATION` – Command parameters or configuration violate safety limits.
@@ -232,25 +221,19 @@ This set can be extended in future versions; new codes must be documented.
 
 ### 6. Versioning
 
-The device reports protocol version via a special `STATUS` field:
-- Example:
-  - `protocol_version=1`
-  - `min_compatible_protocol_version=1`
-  - `features=EVENTS,RESET`
+The device reports protocol version in the **status** response:
+- `protocol_version` – current API version.
+- `min_compatible_protocol_version` – minimum client version the device supports.
+- `features` – optional array of feature flags (e.g. `EVENTS`, `RESET`).
 
-Future extensions to the protocol:
-- MUST be backward compatible with commands and fields defined here.
+Future extensions:
+- MUST be backward compatible with resources and fields defined here.
 - SHOULD avoid reusing codes or meanings.
 
 Client behavior:
-- On connect, the JVM client SHOULD:
-  - Issue `STATUS` and read `protocol_version`, `min_compatible_protocol_version`, and `features`.
-  - Refuse to operate (or operate in a degraded mode) if its required minimum version is greater than the device’s `protocol_version`.
-  - Gracefully ignore unknown fields and unexpected additional key–value pairs.
-
-The JVM client library tracks:
-- Minimum required device protocol version.
-- Graceful handling when connecting to a newer protocol with extra fields.
+- The JVM client SHOULD call `GET /api/status` (or include version in first request) and check `protocol_version` and `min_compatible_protocol_version`.
+- Refuse to operate (or operate in degraded mode) if the client’s required minimum version is greater than the device’s `protocol_version`.
+- Gracefully ignore unknown JSON fields.
 
 ---
 
@@ -264,7 +247,7 @@ Package suggestion:
 Key classes (conceptual):
 
 - `CardInserterClient`
-  - Manages TCP connection and command/response lifecycle.
+  - Uses an HTTP client and base URL; sends REST requests and parses JSON responses.
 - `DeviceState`
   - Enum: `BOOTING`, `HOMING`, `IDLE`, `INSERTING`, `INSERTED`, `REMOVING`, `ERROR`.
 - `InsertOptions`
@@ -339,8 +322,9 @@ Notes:
 class CardInserterClients private constructor() {
     companion object {
         @JvmStatic
-        fun connect(host: String, port: Int = 6000): CardInserterClient {
-            // implementation
+        fun connect(baseUrl: String): CardInserterClient {
+            // e.g. baseUrl = "https://card-inserter-01.lab.local"
+            // implementation uses HttpClient, builds URLs like baseUrl + "/api/home", etc.
         }
     }
 }
@@ -349,7 +333,7 @@ class CardInserterClients private constructor() {
 #### 7.3 Java Usage Example
 
 ```java
-try (CardInserterClient client = CardInserterClients.connect("card-inserter-01.lab.local", 6000)) {
+try (CardInserterClient client = CardInserterClients.connect("https://card-inserter-01.lab.local")) {
     client.home(10_000L);
 
     InsertOptions options = new InsertOptions(
@@ -370,32 +354,29 @@ try (CardInserterClient client = CardInserterClients.connect("card-inserter-01.l
 
 ### 8. Testing Strategy for Protocol and API
 
-- **Unit tests**:
-  - Command/response serialization and parsing.
-  - Error handling and exception mapping.
-- **Integration tests with simulator**:
-  - Simulated device process implementing this protocol.
-  - JVM client tests that exercise all commands, transitions, and error codes.
-- **Hardware-in-the-loop tests**:
-  - Periodic CI job that runs a subset of card motions against a real device.
-  - Validates protocol compatibility and mechanical behavior end-to-end.
+- **Unit tests:**
+  - Request/response JSON serialization and parsing.
+  - Error handling and exception mapping from HTTP status and body.
+- **Integration tests with simulator:**
+  - Simulated device (or mock server) implementing this REST API.
+  - JVM client tests that exercise all endpoints, state transitions, and error codes.
+- **Hardware-in-the-loop tests:**
+  - Periodic CI job that runs a subset of card motions against a real device over HTTPS.
+  - Validates API compatibility and mechanical behavior end-to-end.
 
 ---
 
 ### 9. Simulation and Determinism Requirements
 
 The simulator must:
-- Implement the same protocol and state machine semantics as the real device.
+- Implement the same REST API and state machine semantics as the real device.
 - Be **deterministic by default**:
-  - Given a fixed sequence of commands and seed, it must produce the same sequence of `RESULT` and `EVENT` lines.
+  - Given a fixed sequence of requests and seed, produce the same sequence of responses and SSE events.
 - Provide **fault injection hooks**:
   - Ability to simulate `CARD_JAM`, `MOTION_TIMEOUT`, and `SENSOR_FAULT` after N operations or on demand.
-- Allow configurable motion times so tests can:
-  - Validate timeout behavior.
-  - Run quickly in CI by shortening simulated motion durations.
+- Allow configurable motion times so tests can validate timeout behavior and run quickly in CI.
 
 The JVM client’s automated tests must:
 - Run against both the simulator and at least one real device (for selected scenarios) to ensure behavioral parity.
 
-This document defines the **external contracts** for the device. The simulator and real device must conform to this specification, and the JVM client must treat it as the single source of truth. 
-
+This document defines the **external contracts** for the device. The simulator and real device must conform to this specification, and the JVM client must treat it as the single source of truth.

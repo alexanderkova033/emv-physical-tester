@@ -80,6 +80,8 @@ Example responses:
   - `FAULT` – `error_code=<CODE> error_message=<string>` (e.g., `CARD_JAM`, `ESTOP_ASSERTED`)
   - `RESERVATION` – `owner=<string> action=<ACQUIRED|RELEASED|EXPIRED>`
 
+**Device reservation (single controller per device):** Only one logical test session should control a device at a time. Implementations may use one of: (1) **First connection wins** – the first client that connects holds logical ownership until disconnect; other connections get read-only or rejected. (2) **Explicit RESERVE/RELEASE** – optional commands `RESERVE id=<id> owner=<string> [lease_sec=<int>]` and `RELEASE id=<id>` to acquire/release a lock; device emits `EVENT type=RESERVATION` on change. The JVM client or lab scheduler must enforce exclusive use (e.g. by connecting only one test runner per device or by calling RESERVE before use).
+
 Example events:
 - `EVENT type=STATE_CHANGED old_state=IDLE new_state=INSERTING`
 - `EVENT type=FAULT error_code=CARD_JAM error_message=Near_end_of_travel`

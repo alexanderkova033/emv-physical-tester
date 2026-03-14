@@ -7,6 +7,8 @@ The system automates **physical insertion and removal of EMV contact cards** int
 - Local certification scenarios.
 - Internal regression and pipeline automation.
 
+**Demand traceability:** The system is designed to support **all EMV L3 and local certification scenarios** that require contact card insertion and removal. Scenario coverage is achieved by authoring tests (JUnit/Kotest or equivalent) that use the card inserter API for repeatable insert/remove sequences; the device does not implement EMV or terminal logic—it only provides reliable, repeatable physical motion on command.
+
 The system **does not implement EMV or terminal business logic**. It only provides:
 - Reliable, repeatable mechanical motion of a card into/out of the reader slot.
 - A simple, TCP-based text protocol for control.
@@ -21,36 +23,24 @@ The system is designed to be:
 
 ### 2. High-Level Decomposition
 
-The system is decomposed into four main subsystems:
+To match the priorities of **simple and low-cost assembly** and **a very simple API**, the system is decomposed into three main subsystems:
 
 1. **Mechanical Subsystem**
-   - Card carriage and actuator (linear movement).
-   - Adjustable fixtures to hold different terminal models.
-   - Hard stops and limit switches.
+   - Single-axis linear motion (one actuator) that moves the card in and out.
+   - Simple, reusable fixtures/adapters for different terminal models.
+   - Hard stops and minimal limit switches only where needed.
 
-2. **Electronics Subsystem**
-   - Motor drivers (stepper or DC gearmotor + driver).
-   - Sensor inputs (home, end-of-travel, optional card-present).
-   - **Primary controller: MCU with Ethernet (STM32-class)**.
-   - Optional higher-level SBC gateway (non-critical for motion).
-   - Power supply and basic protections.
+2. **Device Electronics and Firmware Subsystem (Primary: Ethernet-on-Device)**
+   - **Primary design:** Microcontroller (STM32-class) with integrated Ethernet, connected directly to the lab network. The device runs the TCP protocol (e.g. port 6000) and motion control on the same MCU. No host daemon required.
+   - Direct control of a single servo or linear actuator; 1–2 position sensors (home / fully inserted) as needed.
+   - **Alternative (simpler first build):** Arduino-class board over USB to a host PC; a lightweight daemon on the PC exposes the same TCP text protocol. Deployment and API are unchanged; only the physical network path differs (TCP → daemon → USB → device).
 
-3. **Firmware / Device Software**
-   - Motion control and safety interlocks.
-   - Device state machine (IDLE, HOMING, READY, INSERTING, INSERTED, REMOVING, ERROR).
-   - TCP server implementing the text protocol.
-   - Logging and diagnostics.
-
-4. **JVM Client Library and Test Integration**
-   - Kotlin library (Java-compatible) exposing a simple API:
-     - `home()`, `insertCard()`, `removeCard()`, `status()`, `withCardInserted { ... }`, etc.
-   - Optional simulator / fake device for development without hardware.
-   - Integration helpers for JUnit/Kotest and CI.
-
-5. **Operational and Safety Layer**
-   - Lab operating procedures, device reservation/locking.
-   - Emergency stop handling and power-loss behavior.
-   - Factory/acceptance tests and maintenance procedures.
+3. **Host Software Subsystem (JVM Client + Optional Daemon)**
+   - Kotlin/Java client library:
+     - Small, high‑level API: `insertCard()`, `removeCard()`, `status()`, `withInsertedCard { ... }`.
+     - Connects to the device (or daemon) via TCP using the same text protocol.
+   - Optional simulator/fake device that implements the same TCP protocol without hardware.
+   - When using the USB alternative, a lightweight daemon on a lab PC bridges Serial/USB to TCP.
 
 ---
 
@@ -73,11 +63,10 @@ The system is decomposed into four main subsystems:
 **Responsibilities**
 - Drive the actuator(s) with the required current/voltage and motion profile.
 - Read sensors and provide reliable digital signals to the controller.
-- Provide network connectivity (Ethernet) to the lab network.
+- Provide network connectivity to the lab: **primary** = Ethernet on device (TCP on device); **alternative** = USB to host, with TCP exposed by a daemon on the host.
 - Provide power distribution and basic protections (fuses, reverse polarity protection as needed).
 
 **Non-Responsibilities**
-- No high-level command parsing (delegated to firmware).
 - No EMV or test flow logic.
 
 #### 3.3 Firmware / Device Software
@@ -121,14 +110,10 @@ The system is decomposed into four main subsystems:
 
 ### 4. Deployment Topology
 
-- One or more **Card Inserter Devices** on the lab network, each with:
-  - Its own IP address.
-  - A configured TCP port for control (e.g., `6000`).
-- EMV / certification tests run on:
-  - Developer machines.
-  - CI agents.
-  - Dedicated test controllers.
-  They connect via the client library to the devices.
+- One or more **Card Inserter Devices** on the lab network. Each device is addressed by **one TCP endpoint** (host:port, e.g. `6000`):
+  - **Primary:** The device has its own IP (Ethernet on MCU); the TCP server runs on the device.
+  - **Alternative:** The device is connected by USB to a lab PC; the PC runs a daemon that exposes TCP (e.g. one port per USB device). The client still connects to a single host:port; that host is the PC.
+- EMV / certification tests run on developer machines, CI agents, or dedicated test controllers, and connect via the JVM client library to that TCP endpoint.
 
 Example topology:
 - `card-inserter-01.lab.local:6000` – used by CI pipeline for standard regression.
@@ -264,7 +249,7 @@ These constraints inform:
 
 Operational aspects (to be elaborated in procedures outside this document):
 - **Device reservation**:
-  - Only one logical test session should control a given device at a time (locking/lease semantics in JVM client or via a lab scheduler).
+  - Only one logical test session should control a given device at a time. The protocol supports reservation via optional `RESERVE`/`RELEASE` commands (or first-connection-wins semantics); the device may emit `EVENT type=RESERVATION` when ownership changes. The JVM client or lab scheduler must implement locking/lease semantics so that concurrent test runs do not share the same device. See `protocol-and-api-spec.md` for reservation events and any reserve/release command definitions.
 - **Emergency procedures**:
   - Presence of a physical E-stop accessible to the operator.
   - Clear documentation on how to recover from jams or ERROR state.

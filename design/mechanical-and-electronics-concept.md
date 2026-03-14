@@ -92,28 +92,21 @@ Quantitative guidance (initial targets):
 
 ### 3. Electronics Concept
 
-#### 3.1 Control Architecture (Primary Choice)
+#### 3.1 Control Architecture
 
-To better match an industrial, VERIFONE-grade lab tool, the **primary reference design** uses:
+**Primary design (recommended for VERIFONE-grade lab tool):**
 
-- **MCU + Ethernet as the motion controller (authoritative source of truth)**
-  - Microcontroller: STM32-class MCU with:
-    - Integrated Ethernet MAC + external PHY.
-    - Sufficient flash/RAM for motion control + TCP server.
-  - Responsibilities:
-    - Real-time motion control and sensor handling.
-    - Direct implementation of the TCP protocol and state machine.
+- **MCU + Ethernet as the motion controller.** The device is the single source of truth for motion and protocol.
+  - Microcontroller: STM32-class MCU with integrated Ethernet MAC + external PHY, and sufficient flash/RAM for motion control and TCP server.
+  - Responsibilities: real-time motion control, sensor handling, and direct implementation of the TCP protocol and state machine.
+- Benefits: deterministic real-time behavior, no OS/SD-card on the critical path, protocol and behavior stable across labs.
 
-Optionally, a **secondary SBC-based gateway** can be added later on top for:
-- Aggregating logs from multiple devices.
-- Hosting dashboards or higher-level automation tools.
+**Alternative (simpler first build or low-cost variant):**
 
-This choice:
-- Ensures deterministic real-time behavior and robustness.
-- Avoids SD-card/OS issues on the critical motion-control path.
-- Keeps the protocol and behavior stable across labs.
+- **Arduino-class MCU over USB** to a host PC. A daemon on the PC implements the TCP server and forwards commands to the device over Serial/USB. The client still connects to a host:port (the PC); API and protocol are unchanged.
+- Use when Ethernet-capable MCU or board availability is limited; upgrade path is to move to the primary design.
 
-#### 3.2 Core Electronic Components
+**Optional later:** A secondary SBC-based gateway can aggregate logs from multiple devices or host dashboards; it is not on the critical motion-control path.
 
 #### 3.2 Core Electronic Components
 
@@ -131,7 +124,7 @@ This choice:
   - All connected to digital inputs with appropriate debouncing/protection.
 
 - Network interface:
-  - Ethernet port from SBC/MCU.
+  - **Primary:** Ethernet port on the MCU (MAC + PHY). **Alternative:** USB to host; TCP is provided by the host daemon.
   - Optionally, a status LED to show link/activity and device state.
 
 ---
@@ -243,7 +236,7 @@ This is a conceptual list; specific part numbers depend on region and supplier.
   - Optional optical card-present sensor.
 
 - Electronics:
-  - SBC (e.g., industrial Raspberry Pi-equivalent).
+  - **Primary:** STM32-class MCU board with Ethernet (or equivalent). **Alternative:** Arduino-class board + USB; host PC runs TCP daemon.
   - Stepper motor driver module.
   - 24 VDC power supply (or suitable for chosen motor).
   - Wiring, connectors, terminal blocks, fuses as required.

@@ -20,17 +20,19 @@ This document describes a **reference concept**; exact implementation can be ada
   - A **linear axis** that moves a card carriage into and out of the card reader slot.
 
 Orientation:
+
 - Default configuration assumes a **horizontal insertion** along the card slot axis.
 - Alternative orientations (e.g., slight upward or downward angle) are possible via adjustments in the fixture.
 
 #### 2.2 Base Frame and Terminal Fixture
 
 - Frame:
+
   - Use standard aluminum extrusion profiles (e.g., 20x20 or 30x30 mm).
   - Connect with standard corner brackets and T-nuts.
   - Provide a flat reference surface for the terminal and linear axis.
-
 - Terminal fixture:
+
   - Adjustable along at least:
     - X-axis: horizontal offset relative to the card carriage.
     - Y-axis: vertical height to align slot center.
@@ -43,6 +45,7 @@ Orientation:
 #### 2.3 Linear Axis and Card Carriage
 
 - Linear axis:
+
   - Single-axis motion using:
     - Option A: Lead screw + nut + linear guide block.
     - Option B: Belt drive + linear guide (slightly higher speed, similar complexity).
@@ -51,8 +54,8 @@ Orientation:
     - Linear rail (or rod+bearing) with carriage block.
     - Lead screw/belt assembly.
     - NEMA 17 (or similar) stepper motor or DC gearmotor.
-
 - Card carriage:
+
   - Holds a standard EMV card (and possibly variances in thickness) securely.
   - Feature ideas:
     - Spring-loaded clip or clamp.
@@ -63,23 +66,25 @@ Orientation:
 #### 2.4 Stops, Sensors, and Safety
 
 - Mechanical stops:
+
   - Hard stops at both ends of travel to prevent overrun.
   - Stops should be robust enough to withstand misconfiguration.
-
 - Sensors:
+
   - Home sensor:
     - E.g., mechanical limit switch or optical endstop at retracted position.
   - Forward/end-of-travel sensor:
     - To detect unexpected overtravel or jam.
   - Optional card-present sensor:
     - Near the card slot, optical or mechanical, to detect whether the card actually entered the slot.
-
 - Safety considerations:
+
   - Motion speed limited such that contact forces with the terminal are within safe limits.
   - Homing routine uses reduced speed near sensors.
   - Firmware always respects configured min/max positions.
 
 Quantitative guidance (initial targets):
+
 - Insertion depth tolerance:
   - Repeatability: ±0.3 mm at the card edge after a homing cycle.
   - Absolute error relative to ideal contact position: within ±0.5 mm given proper alignment.
@@ -101,30 +106,24 @@ Quantitative guidance (initial targets):
   - Responsibilities: real-time motion control, sensor handling, and direct implementation of the REST API and state machine.
 - Benefits: deterministic real-time behavior, no OS/SD-card on the critical path, protocol and behavior stable across labs.
 
-**Alternative (simpler first build or low-cost variant):**
-
-- **Arduino-class MCU over USB** to a host PC. A daemon on the PC implements the REST over HTTPS API and forwards commands to the device over Serial/USB. The client still connects to the daemon’s base URL (the PC); API contract is unchanged.
-- Use when Ethernet-capable MCU or board availability is limited; upgrade path is to move to the primary design.
-
-**Optional later:** A secondary SBC-based gateway can aggregate logs from multiple devices or host dashboards; it is not on the critical motion-control path.
-
 #### 3.2 Core Electronic Components
 
 - Power supply:
+
   - 24 VDC (typical for stepper systems) or other appropriate voltage based on motor choice.
   - Sizing for peak current of motor plus SBC.
-
 - Motor driver:
+
   - Stepper driver module (e.g., common off-the-shelf module) rated for the motor current.
   - Current limiting configured to protect the mechanism.
-
 - Sensors:
+
   - Limit/home switches (mechanical or optical).
   - Optional card-present sensor.
   - All connected to digital inputs with appropriate debouncing/protection.
-
 - Network interface:
-  - **Primary:** Ethernet port on the MCU (MAC + PHY). **Alternative:** USB to host; REST/HTTPS is provided by the host daemon.
+
+  - **Primary:** Ethernet port on the MCU (MAC + PHY).
   - Optionally, a status LED to show link/activity and device state.
 
 ---
@@ -132,6 +131,7 @@ Quantitative guidance (initial targets):
 ### 4. Firmware / Motion Control Concept
 
 The firmware (on SBC or MCU) is responsible for:
+
 - Executing motion profiles for:
   - Homing.
   - Full insert.
@@ -142,21 +142,23 @@ The firmware (on SBC or MCU) is responsible for:
 Motion sequences (conceptual):
 
 - Homing:
+
   - Move slowly towards home switch until triggered.
   - Back off slightly, re-approach for precision.
   - Set position counter to zero at home.
-
 - Insert:
+
   - From home, move forward to target depth (converted from mm to steps).
   - Optionally, slow down near the final contact region.
   - If forward sensor or overcurrent/jam condition, abort and signal error.
-
 - Remove:
+
   - From inserted position, move back to home, respecting sensor feedback.
 
 All distances and speeds are **configurable parameters**, either in firmware or via configuration files.
 
 Power-loss and E-stop behavior:
+
 - On power loss:
   - The mechanical system must be designed so that loss of motor torque does not cause uncontrolled further insertion.
   - On next power-up, firmware must assume a conservative state (e.g., card may still be in reader) and require a controlled recovery motion.
@@ -171,6 +173,7 @@ Power-loss and E-stop behavior:
 ### 5. Configuration for Different Terminal Models
 
 To support multiple terminals:
+
 - Define a set of configuration parameters per terminal model:
   - `insertion_depth_mm`
   - `nominal_speed_mm_s`
@@ -187,23 +190,25 @@ In the first phase, a **single configuration** for one terminal model may be har
 ### 6. Assembly and Serviceability
 
 - Target:
+
   - Assembly by a technician using:
     - Standard hand tools (hex keys, screwdriver).
     - Simple alignment procedure documented in an assembly guide.
-
 - Alignment procedure (high level):
+
   1. Install frame and linear axis.
   2. Mount terminal plate and terminal.
   3. Use a reference card and jogging tool (via test software) to adjust:
      - X/Y position.
      - Angular alignment.
   4. Tighten all brackets once alignment is satisfactory.
-
 - Service:
+
   - Wear components (belts, bearings, motor coupler) are replaceable without disassembling the entire device.
   - Sensors are accessible for replacement and inspection.
 
 Design-for-manufacture/assembly (DFM/DFA) checklist (high level):
+
 - Prefer:
   - Single fastener type/size where possible.
   - Symmetric parts to reduce assembly errors.
@@ -219,27 +224,27 @@ Design-for-manufacture/assembly (DFM/DFA) checklist (high level):
 This is a conceptual list; specific part numbers depend on region and supplier.
 
 - Frame:
+
   - 20x20 mm aluminum extrusion, cut lengths.
   - Corner brackets, T-nuts, screws.
-
 - Linear axis:
+
   - Linear rail with carriage block (or linear rod + linear bearings).
   - Lead screw + nut + coupler (or timing belt + pulleys).
   - NEMA 17 stepper motor (or equivalent).
-
 - Fixtures:
+
   - Terminal plates (custom, made per model).
   - Slotted brackets for adjustment.
-
 - Sensors:
+
   - 2x limit switches (home, forward).
   - Optional optical card-present sensor.
-
 - Electronics:
+
   - **Primary:** STM32-class MCU board with Ethernet (or equivalent). **Alternative:** Arduino-class board + USB; host PC runs REST/HTTPS daemon.
   - Stepper motor driver module.
   - 24 VDC power supply (or suitable for chosen motor).
   - Wiring, connectors, terminal blocks, fuses as required.
 
 This concept document is intentionally high-level; it is meant to guide detailed CAD, schematic, and firmware design while remaining aligned with the overall system and protocol architecture.
-

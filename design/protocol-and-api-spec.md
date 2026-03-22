@@ -20,10 +20,12 @@ The API is **request–response**: each action is an HTTP request; the response 
 - Character encoding: **UTF-8**.
 
 Timeouts:
+
 - Client-side **request timeout** is configurable in the JVM API (e.g. default 10 seconds).
 - Device or gateway may close idle connections after a configurable idle period.
 
 Asynchronous events:
+
 - The device exposes **Server-Sent Events (SSE)** at `GET /api/events` to report:
   - State changes.
   - Faults (e.g., E-stop, sensor fault).
@@ -46,6 +48,7 @@ Asynchronous events:
   - For error: `error_code`, and optionally `error_message`.
 
 All endpoints return appropriate HTTP status codes:
+
 - **200 OK** – Command succeeded (body contains result).
 - **400 Bad Request** – Malformed request or invalid parameters.
 - **409 Conflict** – Command not allowed in current state (maps to `ILLEGAL_STATE`).
@@ -193,6 +196,7 @@ All endpoints return appropriate HTTP status codes:
 - **Behavior:** Server sends Server-Sent Events. Each event is a JSON object (one per line after `data: `).
 
 Event types:
+
 - **STATE_CHANGED** – `{ "type": "STATE_CHANGED", "old_state": "IDLE", "new_state": "INSERTING" }`
 - **FAULT** – `{ "type": "FAULT", "error_code": "CARD_JAM", "error_message": "Near_end_of_travel" }`
 - **RESERVATION** – `{ "type": "RESERVATION", "owner": "<string>", "action": "ACQUIRED" | "RELEASED" | "EXPIRED" }`
@@ -222,15 +226,18 @@ This set can be extended in future versions; new codes must be documented.
 ### 6. Versioning
 
 The device reports protocol version in the **status** response:
+
 - `protocol_version` – current API version.
 - `min_compatible_protocol_version` – minimum client version the device supports.
 - `features` – optional array of feature flags (e.g. `EVENTS`, `RESET`).
 
 Future extensions:
+
 - MUST be backward compatible with resources and fields defined here.
 - SHOULD avoid reusing codes or meanings.
 
 Client behavior:
+
 - The JVM client SHOULD call `GET /api/status` (or include version in first request) and check `protocol_version` and `min_compatible_protocol_version`.
 - Refuse to operate (or operate in degraded mode) if the client’s required minimum version is greater than the device’s `protocol_version`.
 - Gracefully ignore unknown JSON fields.
@@ -242,6 +249,7 @@ Client behavior:
 #### 7.1 Core Types
 
 Package suggestion:
+
 - `com.yourcompany.emvphysicaltester`
 
 Key classes (conceptual):
@@ -316,6 +324,7 @@ interface CardInserterClient : AutoCloseable {
 ```
 
 Notes:
+
 - Expose static factory methods with `@JvmStatic` in a companion object or a separate `CardInserterClients` factory class, e.g.:
 
 ```kotlin
@@ -369,6 +378,7 @@ try (CardInserterClient client = CardInserterClients.connect("https://card-inser
 ### 9. Simulation and Determinism Requirements
 
 The simulator must:
+
 - Implement the same REST API and state machine semantics as the real device.
 - Be **deterministic by default**:
   - Given a fixed sequence of requests and seed, produce the same sequence of responses and SSE events.
@@ -377,6 +387,7 @@ The simulator must:
 - Allow configurable motion times so tests can validate timeout behavior and run quickly in CI.
 
 The JVM client’s automated tests must:
+
 - Run against both the simulator and at least one real device (for selected scenarios) to ensure behavioral parity.
 
 This document defines the **external contracts** for the device. The simulator and real device must conform to this specification, and the JVM client must treat it as the single source of truth.

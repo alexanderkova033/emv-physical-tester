@@ -8,7 +8,7 @@ The system automates **physical insertion and removal of EMV contact cards** int
 - Local certification scenarios.
 - Internal regression and pipeline automation.
 
-**Demand traceability:** The system is designed to support **all EMV L3 and local certification scenarios** that require contact card insertion and removal. Scenario coverage is achieved by authoring tests (JUnit/Kotest or equivalent) that use the card inserter API for repeatable insert/remove sequences; the device does not implement EMV or terminal logic—it only provides reliable, repeatable physical motion on command.
+**Demand traceability:** The system is designed to support **all EMV L3 and local certification scenarios** that require contact card insertion and removal. Scenario coverage is achieved by authoring tests (JUnit/Kotest or equivalent) that use the card inserter API for repeatable insert/remove sequences; the device does not implement EMV or terminal logic — it only provides reliable, repeatable physical motion on command.
 
 The system **does not implement EMV or terminal business logic**. It only provides:
 
@@ -55,7 +55,7 @@ To match the priorities of **simple and low-cost assembly** and **a very simple 
 - Move a real EMV card along a controlled path into/out of the terminal’s card reader slot.
 - Provide accurate, repeatable card position (home, inserted, retracted).
 - Provide mechanical alignment and adjustment to support different terminal geometries.
-- Optional Provide physical safety: hard stops preventing over-insertion, mechanical robustness.
+- Provide physical safety: hard stops preventing over-insertion, mechanical robustness.
 
 **Non-Responsibilities**
 
@@ -186,8 +186,8 @@ To support multiple payment terminal models:
   - Insertion speed profile (mm/s).
   - Dwell behavior (whether card is held in place or released).
   - Physical offsets relative to the mechanical reference.
-- Profiles are stored either:
-  - Or on the controlling side (client passes the relevant depth/speed in commands).
+- Profiles are stored:
+  - On the controlling side (client passes the relevant depth/speed in commands).
 
 The first implementation may use a **single global configuration** (one terminal model) and evolve to multiple named profiles as needed.
 
@@ -212,7 +212,7 @@ The system must be easy to diagnose:
   - Command invocations with timing.
   - Mapping from test cases to device commands.
 
-Additional tools (future work):
+Additional tools:
 
 - A small CLI or GUI utility to:
   - Connect to the device.

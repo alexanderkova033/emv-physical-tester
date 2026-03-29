@@ -1,0 +1,42 @@
+{
+    "version": 1,
+    "author": "Christofer William",
+    "editor": "wokwi",
+    "parts": [
+      { "type": "wokwi-arduino-uno", "id": "uno", "top": 0.6, "left": 162.6, "attrs": {} },
+      {
+        "type": "wokwi-pushbutton",
+        "id": "btn1",
+        "top": -41.8,
+        "left": -28.8,
+        "attrs": { "color": "green" }
+      },
+      {
+        "type": "wokwi-pushbutton",
+        "id": "btn2",
+        "top": 15.8,
+        "left": -28.8,
+        "attrs": { "color": "blue" }
+      },
+      {
+        "type": "wokwi-pushbutton",
+        "id": "btn3",
+        "top": 73.4,
+        "left": -28.8,
+        "attrs": { "color": "yellow" }
+      },
+      { "type": "wokwi-servo", "id": "servo1", "top": 26.8, "left": 489.6, "attrs": {} }
+    ],
+    "connections": [
+      [ "uno:GND.1", "servo1:GND", "black", [ "v-86.4", "h182.7", "v153.6" ] ],
+      [ "uno:5V", "servo1:V+", "red", [ "v47.9", "h138.2", "v-153.6" ] ],
+      [ "uno:GND.3", "btn3:2.l", "black", [ "v38.3", "h-274.4" ] ],
+      [ "uno:GND.3", "btn2:2.l", "black", [ "v38.3", "h-389.6", "v-182.4" ] ],
+      [ "uno:GND.3", "btn1:2.l", "black", [ "v38.3", "h-389.6", "v-240" ] ],
+      [ "btn1:1.r", "uno:3", "green", [ "v0", "h345.8" ] ],
+      [ "btn2:1.r", "uno:2", "blue", [ "v0", "h86.6", "v-86.4", "h278.4" ] ],
+      [ "btn3:1.r", "uno:4", "gold", [ "v0", "h48.2", "v-192", "h278.4" ] ],
+      [ "uno:10", "servo1:PWM", "white", [ "v-48", "h135.1", "v134.4" ] ]
+    ],
+    "dependencies": {}
+  }

@@ -1,39 +1,15 @@
 #include <Servo.h>
+#include "device_board_pins.h"
 #include "device_core.h"
 #include "device_arduino_presenter.h"
+#include "device_wokwi_buttons.h"
 
 // >0 = type error messages one character at a time (Serial Monitor); 0 = print instantly.
 #ifndef DEBUG_ERR_CHAR_MS
 #define DEBUG_ERR_CHAR_MS 12
 #endif
 
-// Wokwi emulator: physical mapping for protocol-and-api-spec.md
-//   POST /api/insert     -> D2 (blue)
-//   POST /api/home       -> D3 (green)
-//   POST /api/remove     -> D4 (yellow)
-//   GET  /api/status     -> D5 (white) — prints JSON on Serial
-//   POST /api/abort      -> D6 (red)
-//   POST /api/reset      -> D7 (green)
-//   GET  /api/events *   -> D8 (black) — prints last STATE_CHANGED line on Serial
-//   POST /api/reserve *  -> D9 (blue)
-//   POST /api/release *  -> D11 (yellow)
-//   E-stop input         -> D12 (red); LOW = asserted (503 / ESTOP_ASSERTED)
-// * Optional reservation endpoints per spec; SERIAL output mimics SSE "data:" lines.
-// Servo PWM: D10
-
 Servo carriage;
-
-const int PIN_INSERT = 2;
-const int PIN_HOME = 3;
-const int PIN_REMOVE = 4;
-const int PIN_STATUS = 5;
-const int PIN_ABORT = 6;
-const int PIN_RESET = 7;
-const int PIN_EVENTS = 8;
-const int PIN_RESERVE = 9;
-const int PIN_RELEASE = 11;
-const int PIN_ESTOP = 12;
-const int PIN_SERVO_PWM = 10;
 
 // Servo angles (degrees): full retract reference vs. retract-after-remove.
 const int ANGLE_HOME = 0;
@@ -49,16 +25,6 @@ typedef struct ArduinoDeviceCtx {
 
 static ArduinoDeviceCtx g_ctx = { DEBUG_ERR_CHAR_MS };
 static DeviceController g_dc;
-
-static int prevInsert = HIGH;
-static int prevHome = HIGH;
-static int prevRemove = HIGH;
-static int prevStatus = HIGH;
-static int prevAbort = HIGH;
-static int prevReset = HIGH;
-static int prevEvents = HIGH;
-static int prevReserve = HIGH;
-static int prevRelease = HIGH;
 
 static bool port_estop_asserted(void *ctx) {
  (void)ctx;
@@ -113,16 +79,7 @@ void setup() {
  carriage.attach(PIN_SERVO_PWM);
  carriage.write(ANGLE_HOME);
 
- pinMode(PIN_INSERT, INPUT_PULLUP);
- pinMode(PIN_HOME, INPUT_PULLUP);
- pinMode(PIN_REMOVE, INPUT_PULLUP);
- pinMode(PIN_STATUS, INPUT_PULLUP);
- pinMode(PIN_ABORT, INPUT_PULLUP);
- pinMode(PIN_RESET, INPUT_PULLUP);
- pinMode(PIN_EVENTS, INPUT_PULLUP);
- pinMode(PIN_RESERVE, INPUT_PULLUP);
- pinMode(PIN_RELEASE, INPUT_PULLUP);
- pinMode(PIN_ESTOP, INPUT_PULLUP);
+ device_wokwi_buttons_setup_pinmodes();
 
  DeviceConfig cfg;
  cfg.angle_home = ANGLE_HOME;
@@ -154,73 +111,5 @@ void setup() {
 
 void loop() {
  device_on_estop(&g_dc);
-
- int ins = digitalRead(PIN_INSERT);
- int hom = digitalRead(PIN_HOME);
- int rem = digitalRead(PIN_REMOVE);
- int st = digitalRead(PIN_STATUS);
- int ab = digitalRead(PIN_ABORT);
- int rst = digitalRead(PIN_RESET);
- int ev = digitalRead(PIN_EVENTS);
- int res = digitalRead(PIN_RESERVE);
- int rel = digitalRead(PIN_RELEASE);
-
- if (st == LOW && prevStatus == HIGH) {
-  device_serial_log_cmd("GET /api/status");
-  DeviceStatus s = device_get_status(&g_dc);
-  device_serial_print_status(&s);
- }
- if (ev == LOW && prevEvents == HIGH) {
-  device_serial_log_cmd("GET /api/events (last STATE_CHANGED)");
-  DeviceStatus s = device_get_status(&g_dc);
-  device_serial_print_last_event(s.last_evt_old, s.last_evt_new);
- }
- if (res == LOW && prevReserve == HIGH) {
-  device_serial_log_cmd("POST /api/reserve");
-  device_api_reserve(&g_dc);
- }
- if (rel == LOW && prevRelease == HIGH) {
-  device_serial_log_cmd("POST /api/release");
-  device_api_release(&g_dc);
- }
-
- if (ab == LOW && prevAbort == HIGH) {
-  device_serial_log_cmd("POST /api/abort");
-  const DeviceStatus s = device_get_status(&g_dc);
-  if (s.state != ST_INSERTING && s.state != ST_REMOVING && s.state != ST_HOMING) {
-   Serial.println(F("[CMD]        (ignored — not in HOMING / INSERTING / REMOVING)"));
-  } else {
-   device_api_abort(&g_dc);
-   Serial.println(F("[CMD]        motion stop requested"));
-  }
- }
- if (rst == LOW && prevReset == HIGH) {
-  device_serial_log_cmd("POST /api/reset");
-  device_api_reset(&g_dc);
- }
-
- if (!port_estop_asserted(nullptr)) {
-  if (ins == LOW && prevInsert == HIGH) {
-   device_serial_log_cmd("POST /api/insert");
-   device_api_insert(&g_dc, DEFAULT_DEPTH_MM, DEFAULT_SPEED_MM_S);
-  }
-  if (hom == LOW && prevHome == HIGH) {
-   device_serial_log_cmd("POST /api/home");
-   device_api_home(&g_dc);
-  }
-  if (rem == LOW && prevRemove == HIGH) {
-   device_serial_log_cmd("POST /api/remove");
-   device_api_remove(&g_dc);
-  }
- }
-
- prevInsert = ins;
- prevHome = hom;
- prevRemove = rem;
- prevStatus = st;
- prevAbort = ab;
- prevReset = rst;
- prevEvents = ev;
- prevReserve = res;
- prevRelease = rel;
+ device_wokwi_buttons_poll(&g_dc, DEFAULT_DEPTH_MM, DEFAULT_SPEED_MM_S);
 }

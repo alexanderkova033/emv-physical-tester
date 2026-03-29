@@ -1,9 +1,15 @@
 #include "device_controller.h"
 
-#include <algorithm>
+namespace {
+inline int clamp_int(int v, int lo, int hi) {
+  if (v < lo) return lo;
+  if (v > hi) return hi;
+  return v;
+}
+}  // namespace
 
 int DeviceController::DepthToAngle(const DeviceConfig& cfg, int depth_mm) {
-  depth_mm = std::clamp(depth_mm, 0, cfg.max_depth_mm);
+  depth_mm = clamp_int(depth_mm, 0, cfg.max_depth_mm);
   const long span = static_cast<long>(cfg.angle_insert) - cfg.angle_home;
   return cfg.angle_home +
          static_cast<int>(span * depth_mm / cfg.max_depth_mm);
@@ -11,7 +17,7 @@ int DeviceController::DepthToAngle(const DeviceConfig& cfg, int depth_mm) {
 
 int DeviceController::SpeedToDelayMs(const DeviceConfig& cfg, int speed_mm_s) {
   (void)cfg;
-  speed_mm_s = std::clamp(speed_mm_s, 5, 80);
+  speed_mm_s = clamp_int(speed_mm_s, 5, 80);
   constexpr int kBase = 12;
   return static_cast<int>(kBase * static_cast<long>(20) / speed_mm_s);
 }
@@ -73,7 +79,7 @@ void DeviceController::RampAbortable(int from_angle, int to_angle, int steps,
         static_cast<int>(delta * i / static_cast<float>(steps) + 0.5f);
     ports_.servo_write_angle(ports_.ctx, angle);
     last_commanded_angle_ = angle;
-    ports_.delay_ms(ports_.ctx, static_cast<std::uint16_t>(delay_ms));
+    ports_.delay_ms(ports_.ctx, static_cast<uint16_t>(delay_ms));
   }
 }
 

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <cstdint>
+#include <stdint.h>
 
 enum DeviceState {
   ST_BOOTING = 0,
@@ -35,7 +35,7 @@ struct DeviceStatus {
   DeviceState state = ST_BOOTING;
   ErrCode last_error = ERR_NONE;
   bool reserved = false;
-  std::uint32_t motion_time_ms = 0;
+  uint32_t motion_time_ms = 0;
   DeviceState last_evt_old = ST_BOOTING;
   DeviceState last_evt_new = ST_BOOTING;
 };

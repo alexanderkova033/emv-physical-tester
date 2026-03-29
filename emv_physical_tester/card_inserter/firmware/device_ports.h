@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <cstdint>
+#include <stdint.h>
 
 #include "device_types.h"
 
@@ -13,8 +13,8 @@ struct DevicePorts {
   // **Hardware/OS**
   bool (*estop_asserted)(void* ctx) = nullptr;
   void (*servo_write_angle)(void* ctx, int angle) = nullptr;
-  void (*delay_ms)(void* ctx, std::uint16_t ms) = nullptr;
-  std::uint32_t (*now_ms)(void* ctx) = nullptr;
+  void (*delay_ms)(void* ctx, uint16_t ms) = nullptr;
+  uint32_t (*now_ms)(void* ctx) = nullptr;
 
   // **Presentation/logging**
   void (*emit_state_changed)(void* ctx, DeviceState old_s, DeviceState new_s) =

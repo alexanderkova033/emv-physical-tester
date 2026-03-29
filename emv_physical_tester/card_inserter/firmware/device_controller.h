@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <cstdint>
+#include <stdint.h>
 
 #include "device_ports.h"
 #include "device_types.h"
@@ -52,8 +52,8 @@ class DeviceController {
   bool abort_motion_ = false;
   int current_angle_ = 0;
   int last_commanded_angle_ = 0;
-  std::uint32_t motion_start_ms_ = 0;
-  std::uint32_t last_motion_duration_ms_ = 0;
+  uint32_t motion_start_ms_ = 0;
+  uint32_t last_motion_duration_ms_ = 0;
 
   DeviceState last_evt_old_ = ST_BOOTING;
   DeviceState last_evt_new_ = ST_BOOTING;

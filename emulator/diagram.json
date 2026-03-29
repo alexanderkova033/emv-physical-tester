@@ -1,42 +1,44 @@
 {
-    "version": 1,
-    "author": "Christofer William",
-    "editor": "wokwi",
-    "parts": [
-      { "type": "wokwi-arduino-uno", "id": "uno", "top": 0.6, "left": 162.6, "attrs": {} },
-      {
-        "type": "wokwi-pushbutton",
-        "id": "btn1",
-        "top": -41.8,
-        "left": -28.8,
-        "attrs": { "color": "green" }
-      },
-      {
-        "type": "wokwi-pushbutton",
-        "id": "btn2",
-        "top": 15.8,
-        "left": -28.8,
-        "attrs": { "color": "blue" }
-      },
-      {
-        "type": "wokwi-pushbutton",
-        "id": "btn3",
-        "top": 73.4,
-        "left": -28.8,
-        "attrs": { "color": "yellow" }
-      },
-      { "type": "wokwi-servo", "id": "servo1", "top": 26.8, "left": 489.6, "attrs": {} }
-    ],
-    "connections": [
-      [ "uno:GND.1", "servo1:GND", "black", [ "v-86.4", "h182.7", "v153.6" ] ],
-      [ "uno:5V", "servo1:V+", "red", [ "v47.9", "h138.2", "v-153.6" ] ],
-      [ "uno:GND.3", "btn3:2.l", "black", [ "v38.3", "h-274.4" ] ],
-      [ "uno:GND.3", "btn2:2.l", "black", [ "v38.3", "h-389.6", "v-182.4" ] ],
-      [ "uno:GND.3", "btn1:2.l", "black", [ "v38.3", "h-389.6", "v-240" ] ],
-      [ "btn1:1.r", "uno:3", "green", [ "v0", "h345.8" ] ],
-      [ "btn2:1.r", "uno:2", "blue", [ "v0", "h86.6", "v-86.4", "h278.4" ] ],
-      [ "btn3:1.r", "uno:4", "gold", [ "v0", "h48.2", "v-192", "h278.4" ] ],
-      [ "uno:10", "servo1:PWM", "white", [ "v-48", "h135.1", "v134.4" ] ]
-    ],
-    "dependencies": {}
-  }
+  "version": 1,
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0.6, "left": 162.6, "attrs": {} },
+    { "type": "wokwi-pushbutton", "id": "btn_home", "top": -120, "left": -38.4, "attrs": { "color": "green" } },
+    { "type": "wokwi-pushbutton", "id": "btn_insert", "top": -62.2, "left": -38.4, "attrs": { "color": "blue" } },
+    { "type": "wokwi-pushbutton", "id": "btn_remove", "top": -4, "left": -38.4, "attrs": { "color": "yellow" } },
+    { "type": "wokwi-pushbutton", "id": "btn_status", "top": 54.2, "left": -38.4, "attrs": { "color": "white" } },
+    { "type": "wokwi-pushbutton", "id": "btn_abort", "top": 112.4, "left": -38.4, "attrs": { "color": "red" } },
+    { "type": "wokwi-pushbutton", "id": "btn_reset", "top": 170.6, "left": -38.4, "attrs": { "color": "green" } },
+    { "type": "wokwi-pushbutton", "id": "btn_events", "top": 228.8, "left": -38.4, "attrs": { "color": "black" } },
+    { "type": "wokwi-pushbutton", "id": "btn_reserve", "top": 287, "left": -38.4, "attrs": { "color": "blue" } },
+    { "type": "wokwi-pushbutton", "id": "btn_release", "top": 345.2, "left": -38.4, "attrs": { "color": "yellow" } },
+    { "type": "wokwi-pushbutton", "id": "btn_estop", "top": 403.4, "left": -38.4, "attrs": { "color": "red" } },
+    { "type": "wokwi-servo", "id": "servo1", "top": 26.8, "left": 489.6, "attrs": {} }
+  ],
+  "connections": [
+    [ "uno:GND.1", "servo1:GND", "black", [ "v-86.4", "h182.7", "v153.6" ] ],
+    [ "uno:5V", "servo1:V+", "red", [ "v47.9", "h138.2", "v-153.6" ] ],
+    [ "uno:GND.3", "btn_home:2.l", "black", [ "h-38.4", "v-192" ] ],
+    [ "uno:GND.3", "btn_insert:2.l", "black", [ "h-38.4", "v-182.4" ] ],
+    [ "uno:GND.3", "btn_remove:2.l", "black", [ "h-38.4", "v-172.8" ] ],
+    [ "uno:GND.3", "btn_status:2.l", "black", [ "h-38.4", "v-163.2" ] ],
+    [ "uno:GND.3", "btn_abort:2.l", "black", [ "h-38.4", "v-153.6" ] ],
+    [ "uno:GND.3", "btn_reset:2.l", "black", [ "h-38.4", "v-144" ] ],
+    [ "uno:GND.3", "btn_events:2.l", "black", [ "h-38.4", "v-134.4" ] ],
+    [ "uno:GND.3", "btn_reserve:2.l", "black", [ "h-38.4", "v-124.8" ] ],
+    [ "uno:GND.3", "btn_release:2.l", "black", [ "h-38.4", "v-115.2" ] ],
+    [ "uno:GND.3", "btn_estop:2.l", "black", [ "h-38.4", "v-105.6" ] ],
+    [ "btn_insert:1.r", "uno:2", "blue", [ "v0", "h278.4" ] ],
+    [ "btn_home:1.r", "uno:3", "green", [ "v0", "h300" ] ],
+    [ "btn_remove:1.r", "uno:4", "gold", [ "v0", "h278.4" ] ],
+    [ "btn_status:1.r", "uno:5", "green", [ "v0", "h278.4" ] ],
+    [ "btn_abort:1.r", "uno:6", "red", [ "v0", "h278.4" ] ],
+    [ "btn_reset:1.r", "uno:7", "green", [ "v0", "h278.4" ] ],
+    [ "btn_events:1.r", "uno:8", "gray", [ "v0", "h278.4" ] ],
+    [ "btn_reserve:1.r", "uno:9", "blue", [ "v0", "h278.4" ] ],
+    [ "btn_release:1.r", "uno:11", "orange", [ "v0", "h278.4" ] ],
+    [ "btn_estop:1.r", "uno:12", "red", [ "v0", "h278.4" ] ],
+    [ "uno:10", "servo1:PWM", "white", [ "v-48", "h135.1", "v134.4" ] ]
+  ],
+  "dependencies": {}
+}

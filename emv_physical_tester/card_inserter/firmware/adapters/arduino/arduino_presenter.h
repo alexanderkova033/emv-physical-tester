@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include <stdint.h>
+#include <cstdint>
 
 #include "../../domain/device_types.h"
 #include "../../ports/device_ports.h"
@@ -9,10 +9,10 @@
 // Arduino adapter: Serial/protocol presentation and physical I/O that backs DevicePorts
 // (servo PWM, estop GPIO, delay/millis). Keeps PROGMEM + typing-effect behavior out of the core.
 
-void device_arduino_hw_init(uint32_t serial_baud, int servo_pwm_pin,
+void device_arduino_hw_init(std::uint32_t serial_baud, int servo_pwm_pin,
                             int initial_angle_deg);
 void device_arduino_presenter_bind_device_ports(DevicePorts *out,
-                                                uint16_t err_msg_char_ms);
+                                                std::uint16_t err_msg_char_ms);
 
 const char *device_state_name(DeviceState s);
 const char *device_err_name(ErrCode e);
@@ -22,7 +22,7 @@ void device_serial_log_ok(const char *line);
 void device_serial_log_err_typed(ErrCode e, DeviceState current_state,
                                  const char *command_label,
                                  const char *detail_override,
-                                 uint16_t per_char_ms);
+                                 std::uint16_t per_char_ms);
 
 void device_serial_emit_state_changed(DeviceState old_s, DeviceState new_s);
 void device_serial_emit_reservation(bool acquired);

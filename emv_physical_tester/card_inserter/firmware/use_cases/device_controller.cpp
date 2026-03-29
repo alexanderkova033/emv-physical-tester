@@ -73,7 +73,7 @@ void DeviceController::RampAbortable(int from_angle, int to_angle, int steps,
         static_cast<int>(delta * i / static_cast<float>(steps) + 0.5f);
     ports_.servo_write_angle(ports_.ctx, angle);
     last_commanded_angle_ = angle;
-    ports_.delay_ms(ports_.ctx, static_cast<uint16_t>(delay_ms));
+    ports_.delay_ms(ports_.ctx, static_cast<std::uint16_t>(delay_ms));
   }
 }
 

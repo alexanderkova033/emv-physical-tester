@@ -2,11 +2,12 @@
 
 #include <Servo.h>
 #include <avr/pgmspace.h>
+#include <cstdint>
 
 #include "arduino_board_pins.h"
 
 static Servo s_servo;
-static uint16_t s_err_msg_char_ms;
+static std::uint16_t s_err_msg_char_ms;
 
 const char *device_state_name(DeviceState s) {
   switch (s) {
@@ -31,10 +32,11 @@ const char *device_err_name(ErrCode e) {
   }
 }
 
-static void type_flash(const __FlashStringHelper *msg, uint16_t per_char_ms) {
+static void type_flash(const __FlashStringHelper *msg,
+                       std::uint16_t per_char_ms) {
   PGM_P p = reinterpret_cast<PGM_P>(msg);
   for (;;) {
-    uint8_t c = pgm_read_byte(p++);
+    std::uint8_t c = pgm_read_byte(p++);
     if (c == 0) break;
     Serial.write(c);
     if (per_char_ms != 0) delay(per_char_ms);
@@ -54,7 +56,7 @@ void device_serial_log_ok(const char *line) {
 void device_serial_log_err_typed(ErrCode e, DeviceState current_state,
                                  const char *command_label,
                                  const char *detail_override,
-                                 uint16_t per_char_ms) {
+                                 std::uint16_t per_char_ms) {
   Serial.println(F("[ERR]"));
   Serial.print(F("  error_code: "));
   Serial.println(device_err_name(e));
@@ -141,14 +143,14 @@ void port_servo_write(void *ctx, int angle) {
   s_servo.write(angle);
 }
 
-void port_delay_ms(void *ctx, uint16_t ms) {
+void port_delay_ms(void *ctx, std::uint16_t ms) {
   (void)ctx;
   delay(ms);
 }
 
-uint32_t port_now_ms(void *ctx) {
+std::uint32_t port_now_ms(void *ctx) {
   (void)ctx;
-  return static_cast<uint32_t>(millis());
+  return static_cast<std::uint32_t>(millis());
 }
 
 void port_emit_state_changed(void *ctx, DeviceState old_s, DeviceState new_s) {
@@ -180,7 +182,7 @@ void port_log_err(void *ctx, ErrCode e, DeviceState current_state,
 
 }  // namespace
 
-void device_arduino_hw_init(uint32_t serial_baud, int servo_pwm_pin,
+void device_arduino_hw_init(std::uint32_t serial_baud, int servo_pwm_pin,
                             int initial_angle_deg) {
   Serial.begin(serial_baud);
   s_servo.attach(servo_pwm_pin);
@@ -188,7 +190,7 @@ void device_arduino_hw_init(uint32_t serial_baud, int servo_pwm_pin,
 }
 
 void device_arduino_presenter_bind_device_ports(DevicePorts *out,
-                                                uint16_t err_msg_char_ms) {
+                                                std::uint16_t err_msg_char_ms) {
   s_err_msg_char_ms = err_msg_char_ms;
   out->ctx = nullptr;
   out->estop_asserted = port_estop_asserted;

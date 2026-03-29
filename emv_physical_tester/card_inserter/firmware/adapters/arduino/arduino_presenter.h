@@ -2,13 +2,17 @@
 
 #include <Arduino.h>
 #include <stdint.h>
-#include "device_core.h"
+
+#include "../../domain/device_types.h"
+#include "../../ports/device_ports.h"
 
 // Arduino adapter: Serial/protocol presentation and physical I/O that backs DevicePorts
 // (servo PWM, estop GPIO, delay/millis). Keeps PROGMEM + typing-effect behavior out of the core.
 
-void device_arduino_hw_init(uint32_t serial_baud, int servo_pwm_pin, int initial_angle_deg);
-void device_arduino_presenter_bind_device_ports(DevicePorts *out, uint16_t err_msg_char_ms);
+void device_arduino_hw_init(uint32_t serial_baud, int servo_pwm_pin,
+                            int initial_angle_deg);
+void device_arduino_presenter_bind_device_ports(DevicePorts *out,
+                                                uint16_t err_msg_char_ms);
 
 const char *device_state_name(DeviceState s);
 const char *device_err_name(ErrCode e);

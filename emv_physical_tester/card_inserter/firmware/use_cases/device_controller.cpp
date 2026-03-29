@@ -1,4 +1,4 @@
-#include "device_core.h"
+#include "device_controller.h"
 
 static int clamp_i(int v, int lo, int hi) {
   if (v < lo) return lo;
@@ -156,7 +156,9 @@ void device_api_home(DeviceController *dc) {
   dc->state = ST_IDLE;
   dc->last_error = ERR_NONE;
   emit_state(dc, o, dc->state);
-  if (dc->ports.log_ok) dc->ports.log_ok(dc->ports.ctx, "Home complete — state IDLE.");
+  if (dc->ports.log_ok) {
+    dc->ports.log_ok(dc->ports.ctx, "Home complete — state IDLE.");
+  }
 }
 
 void device_api_insert(DeviceController *dc, int depth_mm, int speed_mm_s) {
@@ -196,7 +198,9 @@ void device_api_insert(DeviceController *dc, int depth_mm, int speed_mm_s) {
   dc->state = ST_INSERTED;
   dc->last_error = ERR_NONE;
   emit_state(dc, o, dc->state);
-  if (dc->ports.log_ok) dc->ports.log_ok(dc->ports.ctx, "Insert complete — state INSERTED.");
+  if (dc->ports.log_ok) {
+    dc->ports.log_ok(dc->ports.ctx, "Insert complete — state INSERTED.");
+  }
 }
 
 void device_api_remove(DeviceController *dc) {
@@ -231,7 +235,9 @@ void device_api_remove(DeviceController *dc) {
   dc->state = ST_IDLE;
   dc->last_error = ERR_NONE;
   emit_state(dc, o, dc->state);
-  if (dc->ports.log_ok) dc->ports.log_ok(dc->ports.ctx, "Remove complete — state IDLE.");
+  if (dc->ports.log_ok) {
+    dc->ports.log_ok(dc->ports.ctx, "Remove complete — state IDLE.");
+  }
 }
 
 void device_api_abort(DeviceController *dc) {
@@ -266,17 +272,23 @@ void device_api_reset(DeviceController *dc) {
   emit_state(dc, o, dc->state);
   dc->ports.servo_write_angle(dc->ports.ctx, dc->current_angle);
   dc->last_commanded_angle = dc->current_angle;
-  if (dc->ports.log_ok) dc->ports.log_ok(dc->ports.ctx, "Reset complete — state IDLE.");
+  if (dc->ports.log_ok) {
+    dc->ports.log_ok(dc->ports.ctx, "Reset complete — state IDLE.");
+  }
 }
 
 void device_api_reserve(DeviceController *dc) {
   dc->reserved = true;
-  if (dc->ports.emit_reservation) dc->ports.emit_reservation(dc->ports.ctx, true);
+  if (dc->ports.emit_reservation) {
+    dc->ports.emit_reservation(dc->ports.ctx, true);
+  }
 }
 
 void device_api_release(DeviceController *dc) {
   dc->reserved = false;
-  if (dc->ports.emit_reservation) dc->ports.emit_reservation(dc->ports.ctx, false);
+  if (dc->ports.emit_reservation) {
+    dc->ports.emit_reservation(dc->ports.ctx, false);
+  }
 }
 
 DeviceStatus device_get_status(const DeviceController *dc) {

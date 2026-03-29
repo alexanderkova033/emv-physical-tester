@@ -1,9 +1,9 @@
-#include "device_wokwi_buttons.h"
+#include "wokwi_buttons.h"
 
 #include <Arduino.h>
 
-#include "device_board_pins.h"
-#include "device_arduino_presenter.h"
+#include "../arduino/arduino_board_pins.h"
+#include "../arduino/arduino_presenter.h"
 
 static int s_prevInsert = HIGH;
 static int s_prevHome = HIGH;
@@ -101,3 +101,4 @@ void device_wokwi_buttons_poll(DeviceController *dc, int default_depth_mm,
   s_prevReserve = res;
   s_prevRelease = rel;
 }
+

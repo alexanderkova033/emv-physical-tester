@@ -1,9 +1,9 @@
-#include "device_arduino_presenter.h"
+#include "arduino_presenter.h"
 
 #include <Servo.h>
 #include <avr/pgmspace.h>
 
-#include "device_board_pins.h"
+#include "arduino_board_pins.h"
 
 static Servo s_servo;
 static uint16_t s_err_msg_char_ms;
@@ -201,3 +201,4 @@ void device_arduino_presenter_bind_device_ports(DevicePorts *out,
   out->log_ok = port_log_ok;
   out->log_err = port_log_err;
 }
+

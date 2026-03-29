@@ -34,7 +34,9 @@ const int PIN_RELEASE = 11;
 const int PIN_ESTOP = 12;
 const int PIN_SERVO_PWM = 10;
 
-const int ANGLE_HOME = 28;
+// Servo angles (degrees): full retract reference vs. retract-after-remove.
+const int ANGLE_HOME = 0;
+const int ANGLE_REMOVE = 30;
 const int ANGLE_INSERT = 152;
 const int MAX_DEPTH_MM = 50;
 const int DEFAULT_DEPTH_MM = 35;
@@ -436,7 +438,7 @@ void apiRemove(void) {
  motionStartMs = millis();
  emitStateChanged(o, state);
 
- rampAbortable(currentAngle, ANGLE_HOME, 55, 12);
+ rampAbortable(currentAngle, ANGLE_REMOVE, 55, 12);
 
  if (estopAsserted()) {
   armEstopError();
@@ -447,7 +449,7 @@ void apiRemove(void) {
   return;
  }
 
- currentAngle = ANGLE_HOME;
+ currentAngle = ANGLE_REMOVE;
  lastMotionDurationMs = millis() - motionStartMs;
  o = state;
  state = ST_IDLE;

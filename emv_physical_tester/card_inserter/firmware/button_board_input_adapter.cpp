@@ -1,9 +1,9 @@
-#include "wokwi_buttons.h"
+#include "button_board_input_adapter.h"
 
 #include <Arduino.h>
 
-#include "arduino_board_pins.h"
-#include "arduino_presenter.h"
+#include "button_board_pins.h"
+#include "arduino_device_adapter.h"
 
 namespace {
 
@@ -29,7 +29,7 @@ inline bool EstopAsserted() { return digitalRead(PIN_ESTOP) == LOW; }
 
 }  // namespace
 
-void device_wokwi_buttons_setup_pinmodes(void) {
+void device_button_board_setup_pinmodes(void) {
   pinMode(PIN_INSERT, INPUT_PULLUP);
   pinMode(PIN_HOME, INPUT_PULLUP);
   pinMode(PIN_REMOVE, INPUT_PULLUP);
@@ -42,7 +42,7 @@ void device_wokwi_buttons_setup_pinmodes(void) {
   pinMode(PIN_ESTOP, INPUT_PULLUP);
 }
 
-void device_wokwi_buttons_poll(DeviceController *dc, int default_depth_mm,
+void device_button_board_poll(DeviceController *dc, int default_depth_mm,
                                int default_speed_mm_s) {
   const int ins = digitalRead(PIN_INSERT);
   const int hom = digitalRead(PIN_HOME);

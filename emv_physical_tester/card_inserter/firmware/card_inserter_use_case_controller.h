@@ -4,8 +4,8 @@
 
 #include <stdint.h>
 
-#include "device_ports.h"
-#include "device_types.h"
+#include "card_inserter_ports.h"
+#include "card_inserter_domain_types.h"
 
 class DeviceController {
  public:

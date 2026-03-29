@@ -1,14 +1,14 @@
-#include "arduino_presenter.h"
+#include "arduino_device_adapter.h"
 
 #include <Servo.h>
 #include <avr/pgmspace.h>
 #include <stdint.h>
 
-#include "arduino_board_pins.h"
+#include "button_board_pins.h"
 
 namespace {
 
-constexpr const char* kReservationOwner = "wokwi";
+constexpr const char* kReservationOwner = "button_board";
 
 Servo g_servo;
 uint16_t g_err_msg_char_ms = 0;

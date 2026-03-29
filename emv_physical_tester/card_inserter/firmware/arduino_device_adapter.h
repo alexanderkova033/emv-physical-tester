@@ -3,8 +3,8 @@
 #include <Arduino.h>
 #include <stdint.h>
 
-#include "device_ports.h"
-#include "device_types.h"
+#include "card_inserter_ports.h"
+#include "card_inserter_domain_types.h"
 
 // Arduino adapter: Serial/protocol presentation and physical I/O that backs DevicePorts
 // (servo PWM, estop GPIO, delay/millis). Keeps PROGMEM + typing-effect behavior out of the core.

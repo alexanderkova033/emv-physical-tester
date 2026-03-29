@@ -1,4 +1,4 @@
-#include "card_inserter_app.h"
+#include "card_inserter_firmware_app.h"
 
 // Some build environments compile this folder as the Arduino "sketch" and do not
 // pick up the repository-root `sketch.ino`. Providing `setup()` / `loop()` here

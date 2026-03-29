@@ -1,6 +1,6 @@
 #pragma once
 
-// Wokwi emulator: physical mapping for protocol-and-api-spec.md
+// Button board: GPIO pin map per protocol-and-api-spec.md (used on hardware and in emulator).
 //   POST /api/insert     -> D2 (blue)
 //   POST /api/home       -> D3 (green)
 //   POST /api/remove     -> D4 (yellow)

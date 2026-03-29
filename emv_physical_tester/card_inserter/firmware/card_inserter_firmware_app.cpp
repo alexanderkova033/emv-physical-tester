@@ -1,9 +1,9 @@
-#include "card_inserter_app.h"
+#include "card_inserter_firmware_app.h"
 
-#include "arduino_board_pins.h"
-#include "arduino_presenter.h"
-#include "device_controller.h"
-#include "wokwi_buttons.h"
+#include "button_board_pins.h"
+#include "arduino_device_adapter.h"
+#include "card_inserter_use_case_controller.h"
+#include "button_board_input_adapter.h"
 
 // >0 = type error messages one character at a time (Serial Monitor); 0 = print instantly.
 #ifndef DEBUG_ERR_CHAR_MS
@@ -39,7 +39,7 @@ DeviceConfig MakeDeviceConfig() {
 void cardInserterApp_setup() {
   device_arduino_hw_init(9600, PIN_SERVO_PWM, kAngleHome);
 
-  device_wokwi_buttons_setup_pinmodes();
+  device_button_board_setup_pinmodes();
 
   const DeviceConfig cfg = MakeDeviceConfig();
 
@@ -56,6 +56,6 @@ void cardInserterApp_setup() {
 
 void cardInserterApp_loop() {
   g_dc.OnEstop();
-  device_wokwi_buttons_poll(&g_dc, kDefaultDepthMm, kDefaultSpeedMmS);
+  device_button_board_poll(&g_dc, kDefaultDepthMm, kDefaultSpeedMmS);
 }
 

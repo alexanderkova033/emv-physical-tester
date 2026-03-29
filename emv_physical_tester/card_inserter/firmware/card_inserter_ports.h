@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-#include "device_types.h"
+#include "card_inserter_domain_types.h"
 
 struct DevicePorts {
   void* ctx = nullptr;

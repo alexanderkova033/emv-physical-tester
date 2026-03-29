@@ -1,4 +1,10 @@
 #include <Servo.h>
+#include <avr/pgmspace.h>
+
+// >0 = type error messages one character at a time (Serial Monitor); 0 = print instantly.
+#ifndef DEBUG_ERR_CHAR_MS
+#define DEBUG_ERR_CHAR_MS 12
+#endif
 
 // Wokwi emulator: physical mapping for protocol-and-api-spec.md
 //   POST /api/insert     -> D2 (blue)
@@ -81,7 +87,10 @@ static void serialPrintStatus(void);
 static void serialPrintLastEvent(void);
 static bool estopAsserted(void);
 static void armEstopError(void);
-static void handleMotionFault(ErrCode e);
+static void handleMotionFault(ErrCode e, const __FlashStringHelper *commandLabel,
+                            const __FlashStringHelper *detailOverride);
+static void rejectCommand(ErrCode e, const __FlashStringHelper *commandLabel,
+                         const __FlashStringHelper *detailOverride);
 static void finishUserAbort(void);
 void apiHome(void);
 void apiInsert(int depthMm, int speedMmS);
@@ -110,6 +119,73 @@ static const char *errName(ErrCode e) {
  case ERR_ESTOP: return "ESTOP_ASSERTED";
  default: return "INTERNAL_ERROR";
  }
+}
+
+static void typeFlash(const __FlashStringHelper *msg, uint16_t perCharMs) {
+ PGM_P p = reinterpret_cast<PGM_P>(msg);
+ for (;;) {
+  uint8_t c = pgm_read_byte(p++);
+  if (c == 0) {
+   break;
+  }
+  Serial.write(c);
+  if (perCharMs != 0) {
+   delay(perCharMs);
+  }
+ }
+}
+
+static void logCmd(const __FlashStringHelper *line) {
+ Serial.print(F("[CMD] "));
+ Serial.println(line);
+}
+
+static void logOk(const __FlashStringHelper *line) {
+ Serial.print(F("[OK]  "));
+ Serial.println(line);
+}
+
+static void logErrTyped(ErrCode e, const __FlashStringHelper *commandLabel,
+                       const __FlashStringHelper *detailOverride) {
+ Serial.println(F("[ERR]"));
+ Serial.print(F("  error_code: "));
+ Serial.println(errName(e));
+ Serial.print(F("  command: "));
+ if (commandLabel) {
+  Serial.println(commandLabel);
+ } else {
+  Serial.println(F("(unknown)"));
+ }
+ Serial.print(F("  state: "));
+ Serial.println(stateName(state));
+ Serial.print(F("  details: "));
+ if (detailOverride) {
+  typeFlash(detailOverride, DEBUG_ERR_CHAR_MS);
+ } else {
+  const __FlashStringHelper *story = F("Unexpected error.");
+  switch (e) {
+  case ERR_ILLEGAL_STATE:
+   story = F(
+       "This command is not allowed in the current state. Use the Status button "
+       "(GET /api/status), then follow the normal sequence: Home, Insert, "
+       "Remove, or Reset / Abort as needed.");
+   break;
+  case ERR_HOME_FAILED:
+   story = F("Homing did not finish as expected. Inspect the mechanism and use "
+            "Reset when it is safe.");
+   break;
+  case ERR_ESTOP:
+   story = F(
+       "Emergency stop is asserted. Release the E-stop switch, then press "
+       "Reset if the device stays in ERROR.");
+   break;
+  default:
+   break;
+  }
+  typeFlash(story, DEBUG_ERR_CHAR_MS);
+ }
+ Serial.println();
+ Serial.println(F("[ERR] end"));
 }
 
 static int depthToAngle(int depthMm) {
@@ -174,35 +250,44 @@ void loop() {
  int rel = digitalRead(PIN_RELEASE);
 
  if (st == LOW && prevStatus == HIGH) {
+  logCmd(F("GET /api/status"));
   serialPrintStatus();
  }
  if (ev == LOW && prevEvents == HIGH) {
+  logCmd(F("GET /api/events (last STATE_CHANGED)"));
   serialPrintLastEvent();
  }
  if (res == LOW && prevReserve == HIGH) {
+  logCmd(F("POST /api/reserve"));
   reserved = true;
   Serial.println(F("data: {\"type\":\"RESERVATION\",\"owner\":\"wokwi\",\"action\":\"ACQUIRED\"}"));
  }
  if (rel == LOW && prevRelease == HIGH) {
+  logCmd(F("POST /api/release"));
   reserved = false;
   Serial.println(F("data: {\"type\":\"RESERVATION\",\"owner\":\"wokwi\",\"action\":\"RELEASED\"}"));
  }
 
  if (ab == LOW && prevAbort == HIGH) {
+  logCmd(F("POST /api/abort"));
   apiAbort();
  }
  if (rst == LOW && prevReset == HIGH) {
+  logCmd(F("POST /api/reset"));
   apiReset();
  }
 
  if (!estopAsserted()) {
   if (ins == LOW && prevInsert == HIGH) {
+   logCmd(F("POST /api/insert"));
    apiInsert(DEFAULT_DEPTH_MM, DEFAULT_SPEED_MM_S);
   }
   if (hom == LOW && prevHome == HIGH) {
+   logCmd(F("POST /api/home"));
    apiHome();
   }
   if (rem == LOW && prevRemove == HIGH) {
+   logCmd(F("POST /api/remove"));
    apiRemove();
   }
  }
@@ -224,18 +309,30 @@ static bool estopAsserted(void) {
 
 static void armEstopError(void) {
  currentAngle = lastCommandedAngle;
+ logErrTyped(ERR_ESTOP, F("E-stop (D12)"), NULL);
  DeviceState o = state;
  lastError = ERR_ESTOP;
  state = ST_ERROR;
  emitStateChanged(o, state);
 }
 
-static void handleMotionFault(ErrCode e) {
+static void handleMotionFault(ErrCode e, const __FlashStringHelper *commandLabel,
+                            const __FlashStringHelper *detailOverride) {
+ // Faults that should place the device in ERROR.
+ logErrTyped(e, commandLabel, detailOverride);
  g_abortMotion = false;
  lastError = e;
  DeviceState o = state;
  state = ST_ERROR;
  emitStateChanged(o, state);
+}
+
+static void rejectCommand(ErrCode e, const __FlashStringHelper *commandLabel,
+                         const __FlashStringHelper *detailOverride) {
+ // Command rejected without changing state (e.g. ILLEGAL_STATE / 409 in spec).
+ logErrTyped(e, commandLabel, detailOverride);
+ lastError = e;
+ // No state transition here by design.
 }
 
 static void finishUserAbort(void) {
@@ -246,15 +343,16 @@ static void finishUserAbort(void) {
  lastError = ERR_NONE;
  lastMotionDurationMs = (motionStartMs != 0) ? (millis() - motionStartMs) : 0;
  emitStateChanged(o, state);
+ logOk(F("Abort complete — state IDLE (position held)."));
 }
 
 void apiHome(void) {
  if (state == ST_INSERTING || state == ST_REMOVING || state == ST_HOMING) {
-  handleMotionFault(ERR_ILLEGAL_STATE);
+  rejectCommand(ERR_ILLEGAL_STATE, F("POST /api/home"), NULL);
   return;
  }
  if (state != ST_IDLE && state != ST_INSERTED) {
-  handleMotionFault(ERR_ILLEGAL_STATE);
+  rejectCommand(ERR_ILLEGAL_STATE, F("POST /api/home"), NULL);
   return;
  }
 
@@ -286,11 +384,12 @@ void apiHome(void) {
  state = ST_IDLE;
  lastError = ERR_NONE;
  emitStateChanged(o, state);
+ logOk(F("Home complete — state IDLE."));
 }
 
 void apiInsert(int depthMm, int speedMmS) {
  if (state != ST_IDLE) {
-  handleMotionFault(ERR_ILLEGAL_STATE);
+  rejectCommand(ERR_ILLEGAL_STATE, F("POST /api/insert"), NULL);
   return;
  }
 
@@ -322,11 +421,12 @@ void apiInsert(int depthMm, int speedMmS) {
  state = ST_INSERTED;
  lastError = ERR_NONE;
  emitStateChanged(o, state);
+ logOk(F("Insert complete — state INSERTED."));
 }
 
 void apiRemove(void) {
  if (state != ST_INSERTED) {
-  handleMotionFault(ERR_ILLEGAL_STATE);
+  rejectCommand(ERR_ILLEGAL_STATE, F("POST /api/remove"), NULL);
   return;
  }
 
@@ -353,17 +453,22 @@ void apiRemove(void) {
  state = ST_IDLE;
  lastError = ERR_NONE;
  emitStateChanged(o, state);
+ logOk(F("Remove complete — state IDLE."));
 }
 
 void apiAbort(void) {
  if (state != ST_INSERTING && state != ST_REMOVING && state != ST_HOMING) {
+  Serial.println(F("[CMD]        (ignored — not in HOMING / INSERTING / REMOVING)"));
   return;
  }
  g_abortMotion = true;
+ Serial.println(F("[CMD]        motion stop requested"));
 }
 
 void apiReset(void) {
  if (estopAsserted()) {
+  logErrTyped(ERR_ESTOP, F("POST /api/reset"),
+             F("Reset cannot finish while E-stop is still pressed. Release E-stop first."));
   DeviceState o = state;
   lastError = ERR_ESTOP;
   state = ST_ERROR;
@@ -379,6 +484,7 @@ void apiReset(void) {
  emitStateChanged(o, state);
  carriage.write(currentAngle);
  lastCommandedAngle = currentAngle;
+ logOk(F("Reset complete — state IDLE."));
 }
 
 static void emitStateChanged(DeviceState oldS, DeviceState newS) {

@@ -44,50 +44,50 @@ void device_wokwi_buttons_poll(DeviceController *dc, int default_depth_mm,
 
   if (st == LOW && s_prevStatus == HIGH) {
     device_serial_log_cmd("GET /api/status");
-    DeviceStatus s = device_get_status(dc);
+    DeviceStatus s = dc->GetStatus();
     device_serial_print_status(&s);
   }
   if (ev == LOW && s_prevEvents == HIGH) {
     device_serial_log_cmd("GET /api/events (last STATE_CHANGED)");
-    DeviceStatus s = device_get_status(dc);
+    DeviceStatus s = dc->GetStatus();
     device_serial_print_last_event(s.last_evt_old, s.last_evt_new);
   }
   if (res == LOW && s_prevReserve == HIGH) {
     device_serial_log_cmd("POST /api/reserve");
-    device_api_reserve(dc);
+    dc->Reserve();
   }
   if (rel == LOW && s_prevRelease == HIGH) {
     device_serial_log_cmd("POST /api/release");
-    device_api_release(dc);
+    dc->Release();
   }
 
   if (ab == LOW && s_prevAbort == HIGH) {
     device_serial_log_cmd("POST /api/abort");
-    const DeviceStatus s = device_get_status(dc);
+    const DeviceStatus s = dc->GetStatus();
     if (s.state != ST_INSERTING && s.state != ST_REMOVING && s.state != ST_HOMING) {
       Serial.println(F("[CMD]        (ignored — not in HOMING / INSERTING / REMOVING)"));
     } else {
-      device_api_abort(dc);
+      dc->Abort();
       Serial.println(F("[CMD]        motion stop requested"));
     }
   }
   if (rst == LOW && s_prevReset == HIGH) {
     device_serial_log_cmd("POST /api/reset");
-    device_api_reset(dc);
+    dc->Reset();
   }
 
   if (!estop_asserted()) {
     if (ins == LOW && s_prevInsert == HIGH) {
       device_serial_log_cmd("POST /api/insert");
-      device_api_insert(dc, default_depth_mm, default_speed_mm_s);
+      dc->Insert(default_depth_mm, default_speed_mm_s);
     }
     if (hom == LOW && s_prevHome == HIGH) {
       device_serial_log_cmd("POST /api/home");
-      device_api_home(dc);
+      dc->Home();
     }
     if (rem == LOW && s_prevRemove == HIGH) {
       device_serial_log_cmd("POST /api/remove");
-      device_api_remove(dc);
+      dc->Remove();
     }
   }
 

@@ -1,323 +1,311 @@
 #include "device_controller.h"
 
-static int clamp_i(int v, int lo, int hi) {
-  if (v < lo) return lo;
-  if (v > hi) return hi;
-  return v;
+#include <algorithm>
+
+int DeviceController::DepthToAngle(const DeviceConfig& cfg, int depth_mm) {
+  depth_mm = std::clamp(depth_mm, 0, cfg.max_depth_mm);
+  const long span = static_cast<long>(cfg.angle_insert) - cfg.angle_home;
+  return cfg.angle_home +
+         static_cast<int>(span * depth_mm / cfg.max_depth_mm);
 }
 
-static int depth_to_angle(const DeviceConfig *cfg, int depth_mm) {
-  depth_mm = clamp_i(depth_mm, 0, cfg->max_depth_mm);
-  long span = (long)cfg->angle_insert - cfg->angle_home;
-  return cfg->angle_home + (int)(span * depth_mm / cfg->max_depth_mm);
-}
-
-static int speed_to_delay_ms(const DeviceConfig *cfg, int speed_mm_s) {
+int DeviceController::SpeedToDelayMs(const DeviceConfig& cfg, int speed_mm_s) {
   (void)cfg;
-  speed_mm_s = clamp_i(speed_mm_s, 5, 80);
-  const int base = 12;
-  return (int)(base * (long)20 / speed_mm_s);
+  speed_mm_s = std::clamp(speed_mm_s, 5, 80);
+  constexpr int kBase = 12;
+  return static_cast<int>(kBase * static_cast<long>(20) / speed_mm_s);
 }
 
-static void emit_state(DeviceController *dc, DeviceState old_s,
-                       DeviceState new_s) {
-  dc->last_evt_old = old_s;
-  dc->last_evt_new = new_s;
-  if (dc->ports.emit_state_changed) {
-    dc->ports.emit_state_changed(dc->ports.ctx, old_s, new_s);
+void DeviceController::EmitState(DeviceState old_s, DeviceState new_s) {
+  last_evt_old_ = old_s;
+  last_evt_new_ = new_s;
+  if (ports_.emit_state_changed) {
+    ports_.emit_state_changed(ports_.ctx, old_s, new_s);
   }
 }
 
-static void reject(DeviceController *dc, ErrCode e, const char *cmd,
-                   const char *detail) {
-  dc->last_error = e;
-  if (dc->ports.log_err) {
-    dc->ports.log_err(dc->ports.ctx, e, dc->state, cmd, detail);
+void DeviceController::Reject(ErrCode e, const char* cmd, const char* detail) {
+  last_error_ = e;
+  if (ports_.log_err) {
+    ports_.log_err(ports_.ctx, e, state_, cmd, detail);
   }
 }
 
-static void fault(DeviceController *dc, ErrCode e, const char *cmd,
-                  const char *detail) {
+void DeviceController::Fault(ErrCode e, const char* cmd, const char* detail) {
   // Faults that should put the device into ERROR.
-  if (dc->ports.log_err) {
-    dc->ports.log_err(dc->ports.ctx, e, dc->state, cmd, detail);
+  if (ports_.log_err) {
+    ports_.log_err(ports_.ctx, e, state_, cmd, detail);
   }
-  dc->abort_motion = false;
-  dc->last_error = e;
-  DeviceState o = dc->state;
-  dc->state = ST_ERROR;
-  emit_state(dc, o, dc->state);
+  abort_motion_ = false;
+  last_error_ = e;
+  const DeviceState old_state = state_;
+  state_ = ST_ERROR;
+  EmitState(old_state, state_);
 }
 
-static void finish_user_abort(DeviceController *dc) {
-  dc->abort_motion = false;
-  dc->current_angle = dc->last_commanded_angle;
-  DeviceState o = dc->state;
-  dc->state = ST_IDLE;
-  dc->last_error = ERR_NONE;
-  dc->last_motion_duration_ms =
-      (dc->motion_start_ms != 0) ? (dc->ports.now_ms(dc->ports.ctx) -
-                                   dc->motion_start_ms)
-                                 : 0;
-  emit_state(dc, o, dc->state);
-  if (dc->ports.log_ok) {
-    dc->ports.log_ok(dc->ports.ctx,
-                     "Abort complete — state IDLE (position held).");
+void DeviceController::FinishUserAbort() {
+  abort_motion_ = false;
+  current_angle_ = last_commanded_angle_;
+  const DeviceState old_state = state_;
+  state_ = ST_IDLE;
+  last_error_ = ERR_NONE;
+  last_motion_duration_ms_ =
+      (motion_start_ms_ != 0)
+          ? (ports_.now_ms(ports_.ctx) - motion_start_ms_)
+          : 0;
+  EmitState(old_state, state_);
+  if (ports_.log_ok) {
+    ports_.log_ok(ports_.ctx, "Abort complete — state IDLE (position held).");
   }
 }
 
-static void ramp_abortable(DeviceController *dc, int from_angle, int to_angle,
-                           int steps, int delay_ms) {
+void DeviceController::RampAbortable(int from_angle, int to_angle, int steps,
+                                     int delay_ms) {
   if (from_angle == to_angle || steps <= 0) return;
-  float delta = (float)(to_angle - from_angle);
+  const float delta = static_cast<float>(to_angle - from_angle);
   for (int i = 0; i <= steps; i++) {
-    if (dc->abort_motion ||
-        (dc->ports.estop_asserted && dc->ports.estop_asserted(dc->ports.ctx))) {
+    if (abort_motion_ ||
+        (ports_.estop_asserted && ports_.estop_asserted(ports_.ctx))) {
       return;
     }
-    int angle = from_angle + (int)(delta * i / (float)steps + 0.5f);
-    dc->ports.servo_write_angle(dc->ports.ctx, angle);
-    dc->last_commanded_angle = angle;
-    dc->ports.delay_ms(dc->ports.ctx, (uint16_t)delay_ms);
+    const int angle =
+        from_angle +
+        static_cast<int>(delta * i / static_cast<float>(steps) + 0.5f);
+    ports_.servo_write_angle(ports_.ctx, angle);
+    last_commanded_angle_ = angle;
+    ports_.delay_ms(ports_.ctx, static_cast<uint16_t>(delay_ms));
   }
 }
 
-static void move_segmented_abortable(DeviceController *dc, int from_angle,
-                                     int to_angle, int fast_steps,
-                                     int fast_delay_ms, int slow_steps,
-                                     int slow_delay_ms) {
+void DeviceController::MoveSegmentedAbortable(int from_angle, int to_angle,
+                                              int fast_steps,
+                                              int fast_delay_ms, int slow_steps,
+                                              int slow_delay_ms) {
   if (from_angle == to_angle) return;
-  int mid = from_angle + (to_angle - from_angle) * 7 / 10;
-  ramp_abortable(dc, from_angle, mid, fast_steps, fast_delay_ms);
-  ramp_abortable(dc, mid, to_angle, slow_steps, slow_delay_ms);
+  const int mid = from_angle + (to_angle - from_angle) * 7 / 10;
+  RampAbortable(from_angle, mid, fast_steps, fast_delay_ms);
+  RampAbortable(mid, to_angle, slow_steps, slow_delay_ms);
 }
 
-void device_init(DeviceController *dc, const DeviceConfig *cfg,
-                 const DevicePorts *ports) {
-  dc->cfg = *cfg;
-  dc->ports = *ports;
+void DeviceController::Init(const DeviceConfig& cfg, const DevicePorts& ports) {
+  cfg_ = cfg;
+  ports_ = ports;
 
-  dc->state = ST_IDLE;
-  dc->last_error = ERR_NONE;
-  dc->reserved = false;
-  dc->abort_motion = false;
+  state_ = ST_IDLE;
+  last_error_ = ERR_NONE;
+  reserved_ = false;
+  abort_motion_ = false;
 
-  dc->current_angle = cfg->angle_home;
-  dc->last_commanded_angle = dc->current_angle;
-  dc->motion_start_ms = 0;
-  dc->last_motion_duration_ms = 0;
+  current_angle_ = cfg.angle_home;
+  last_commanded_angle_ = current_angle_;
+  motion_start_ms_ = 0;
+  last_motion_duration_ms_ = 0;
 
-  dc->last_evt_old = ST_BOOTING;
-  dc->last_evt_new = ST_BOOTING;
+  last_evt_old_ = ST_BOOTING;
+  last_evt_new_ = ST_BOOTING;
 }
 
-void device_api_home(DeviceController *dc) {
-  const char *cmd = "POST /api/home";
+void DeviceController::Home() {
+  const char* cmd = "POST /api/home";
 
-  if (dc->state == ST_INSERTING || dc->state == ST_REMOVING ||
-      dc->state == ST_HOMING) {
-    reject(dc, ERR_ILLEGAL_STATE, cmd, nullptr);
+  if (state_ == ST_INSERTING || state_ == ST_REMOVING || state_ == ST_HOMING) {
+    Reject(ERR_ILLEGAL_STATE, cmd, nullptr);
     return;
   }
-  if (dc->state != ST_IDLE && dc->state != ST_INSERTED) {
-    reject(dc, ERR_ILLEGAL_STATE, cmd, nullptr);
+  if (state_ != ST_IDLE && state_ != ST_INSERTED) {
+    Reject(ERR_ILLEGAL_STATE, cmd, nullptr);
     return;
   }
 
-  dc->abort_motion = false;
-  DeviceState o = dc->state;
-  const bool from_inserted = (dc->state == ST_INSERTED);
-  dc->state = ST_HOMING;
-  dc->motion_start_ms = dc->ports.now_ms(dc->ports.ctx);
-  emit_state(dc, o, dc->state);
+  abort_motion_ = false;
+  DeviceState old_state = state_;
+  const bool from_inserted = (state_ == ST_INSERTED);
+  state_ = ST_HOMING;
+  motion_start_ms_ = ports_.now_ms(ports_.ctx);
+  EmitState(old_state, state_);
 
   if (from_inserted) {
-    ramp_abortable(dc, dc->current_angle, dc->cfg.angle_home, 55, 12);
+    RampAbortable(current_angle_, cfg_.angle_home, 55, 12);
   } else {
-    move_segmented_abortable(dc, dc->current_angle, dc->cfg.angle_home, 55, 8,
-                             45, 22);
+    MoveSegmentedAbortable(current_angle_, cfg_.angle_home, 55, 8, 45, 22);
   }
 
-  if (dc->ports.estop_asserted && dc->ports.estop_asserted(dc->ports.ctx)) {
+  if (ports_.estop_asserted && ports_.estop_asserted(ports_.ctx)) {
     // Preserve current position; move into error.
-    dc->current_angle = dc->last_commanded_angle;
-    fault(dc, ERR_ESTOP, "E-stop", nullptr);
+    current_angle_ = last_commanded_angle_;
+    Fault(ERR_ESTOP, "E-stop", nullptr);
     return;
   }
-  if (dc->abort_motion) {
-    finish_user_abort(dc);
+  if (abort_motion_) {
+    FinishUserAbort();
     return;
   }
 
-  dc->current_angle = dc->cfg.angle_home;
-  dc->last_motion_duration_ms =
-      dc->ports.now_ms(dc->ports.ctx) - dc->motion_start_ms;
-  o = dc->state;
-  dc->state = ST_IDLE;
-  dc->last_error = ERR_NONE;
-  emit_state(dc, o, dc->state);
-  if (dc->ports.log_ok) {
-    dc->ports.log_ok(dc->ports.ctx, "Home complete — state IDLE.");
+  current_angle_ = cfg_.angle_home;
+  last_motion_duration_ms_ = ports_.now_ms(ports_.ctx) - motion_start_ms_;
+  old_state = state_;
+  state_ = ST_IDLE;
+  last_error_ = ERR_NONE;
+  EmitState(old_state, state_);
+  if (ports_.log_ok) {
+    ports_.log_ok(ports_.ctx, "Home complete — state IDLE.");
   }
 }
 
-void device_api_insert(DeviceController *dc, int depth_mm, int speed_mm_s) {
-  const char *cmd = "POST /api/insert";
-  if (dc->state != ST_IDLE) {
-    reject(dc, ERR_ILLEGAL_STATE, cmd, nullptr);
+void DeviceController::Insert(int depth_mm, int speed_mm_s) {
+  const char* cmd = "POST /api/insert";
+  if (state_ != ST_IDLE) {
+    Reject(ERR_ILLEGAL_STATE, cmd, nullptr);
     return;
   }
 
-  const int target = depth_to_angle(&dc->cfg, depth_mm);
-  const int dfast = speed_to_delay_ms(&dc->cfg, speed_mm_s);
+  const int target = DepthToAngle(cfg_, depth_mm);
+  const int dfast = SpeedToDelayMs(cfg_, speed_mm_s);
   int dslow = dfast + dfast / 2;
   if (dslow > 35) dslow = 35;
 
-  dc->abort_motion = false;
-  DeviceState o = dc->state;
-  dc->state = ST_INSERTING;
-  dc->motion_start_ms = dc->ports.now_ms(dc->ports.ctx);
-  emit_state(dc, o, dc->state);
+  abort_motion_ = false;
+  DeviceState old_state = state_;
+  state_ = ST_INSERTING;
+  motion_start_ms_ = ports_.now_ms(ports_.ctx);
+  EmitState(old_state, state_);
 
-  move_segmented_abortable(dc, dc->current_angle, target, 40, dfast, 45, dslow);
+  MoveSegmentedAbortable(current_angle_, target, 40, dfast, 45, dslow);
 
-  if (dc->ports.estop_asserted && dc->ports.estop_asserted(dc->ports.ctx)) {
-    dc->current_angle = dc->last_commanded_angle;
-    fault(dc, ERR_ESTOP, "E-stop", nullptr);
+  if (ports_.estop_asserted && ports_.estop_asserted(ports_.ctx)) {
+    current_angle_ = last_commanded_angle_;
+    Fault(ERR_ESTOP, "E-stop", nullptr);
     return;
   }
-  if (dc->abort_motion) {
-    finish_user_abort(dc);
+  if (abort_motion_) {
+    FinishUserAbort();
     return;
   }
 
-  dc->current_angle = target;
-  dc->last_motion_duration_ms =
-      dc->ports.now_ms(dc->ports.ctx) - dc->motion_start_ms;
-  o = dc->state;
-  dc->state = ST_INSERTED;
-  dc->last_error = ERR_NONE;
-  emit_state(dc, o, dc->state);
-  if (dc->ports.log_ok) {
-    dc->ports.log_ok(dc->ports.ctx, "Insert complete — state INSERTED.");
+  current_angle_ = target;
+  last_motion_duration_ms_ = ports_.now_ms(ports_.ctx) - motion_start_ms_;
+  old_state = state_;
+  state_ = ST_INSERTED;
+  last_error_ = ERR_NONE;
+  EmitState(old_state, state_);
+  if (ports_.log_ok) {
+    ports_.log_ok(ports_.ctx, "Insert complete — state INSERTED.");
   }
 }
 
-void device_api_remove(DeviceController *dc) {
-  const char *cmd = "POST /api/remove";
-  if (dc->state != ST_INSERTED) {
-    reject(dc, ERR_ILLEGAL_STATE, cmd, nullptr);
+void DeviceController::Remove() {
+  const char* cmd = "POST /api/remove";
+  if (state_ != ST_INSERTED) {
+    Reject(ERR_ILLEGAL_STATE, cmd, nullptr);
     return;
   }
 
-  dc->abort_motion = false;
-  DeviceState o = dc->state;
-  dc->state = ST_REMOVING;
-  dc->motion_start_ms = dc->ports.now_ms(dc->ports.ctx);
-  emit_state(dc, o, dc->state);
+  abort_motion_ = false;
+  DeviceState old_state = state_;
+  state_ = ST_REMOVING;
+  motion_start_ms_ = ports_.now_ms(ports_.ctx);
+  EmitState(old_state, state_);
 
-  ramp_abortable(dc, dc->current_angle, dc->cfg.angle_remove, 55, 12);
+  RampAbortable(current_angle_, cfg_.angle_remove, 55, 12);
 
-  if (dc->ports.estop_asserted && dc->ports.estop_asserted(dc->ports.ctx)) {
-    dc->current_angle = dc->last_commanded_angle;
-    fault(dc, ERR_ESTOP, "E-stop", nullptr);
+  if (ports_.estop_asserted && ports_.estop_asserted(ports_.ctx)) {
+    current_angle_ = last_commanded_angle_;
+    Fault(ERR_ESTOP, "E-stop", nullptr);
     return;
   }
-  if (dc->abort_motion) {
-    finish_user_abort(dc);
+  if (abort_motion_) {
+    FinishUserAbort();
     return;
   }
 
-  dc->current_angle = dc->cfg.angle_remove;
-  dc->last_motion_duration_ms =
-      dc->ports.now_ms(dc->ports.ctx) - dc->motion_start_ms;
-  o = dc->state;
-  dc->state = ST_IDLE;
-  dc->last_error = ERR_NONE;
-  emit_state(dc, o, dc->state);
-  if (dc->ports.log_ok) {
-    dc->ports.log_ok(dc->ports.ctx, "Remove complete — state IDLE.");
+  current_angle_ = cfg_.angle_remove;
+  last_motion_duration_ms_ = ports_.now_ms(ports_.ctx) - motion_start_ms_;
+  old_state = state_;
+  state_ = ST_IDLE;
+  last_error_ = ERR_NONE;
+  EmitState(old_state, state_);
+  if (ports_.log_ok) {
+    ports_.log_ok(ports_.ctx, "Remove complete — state IDLE.");
   }
 }
 
-void device_api_abort(DeviceController *dc) {
-  if (dc->state != ST_INSERTING && dc->state != ST_REMOVING &&
-      dc->state != ST_HOMING) {
+void DeviceController::Abort() {
+  if (state_ != ST_INSERTING && state_ != ST_REMOVING && state_ != ST_HOMING) {
     // Presentation handles the "ignored" message.
     return;
   }
-  dc->abort_motion = true;
+  abort_motion_ = true;
 }
 
-void device_api_reset(DeviceController *dc) {
-  const char *cmd = "POST /api/reset";
-  if (dc->ports.estop_asserted && dc->ports.estop_asserted(dc->ports.ctx)) {
+void DeviceController::Reset() {
+  const char* cmd = "POST /api/reset";
+  if (ports_.estop_asserted && ports_.estop_asserted(ports_.ctx)) {
     // Reset cannot complete during E-stop; remain in ERROR.
-    if (dc->ports.log_err) {
-      dc->ports.log_err(dc->ports.ctx, ERR_ESTOP, dc->state, cmd,
-                        "Reset cannot finish while E-stop is still pressed. Release E-stop first.");
+    if (ports_.log_err) {
+      ports_.log_err(ports_.ctx, ERR_ESTOP, state_, cmd,
+                     "Reset cannot finish while E-stop is still pressed. Release E-stop first.");
     }
-    DeviceState o = dc->state;
-    dc->last_error = ERR_ESTOP;
-    dc->state = ST_ERROR;
-    emit_state(dc, o, dc->state);
+    const DeviceState old_state = state_;
+    last_error_ = ERR_ESTOP;
+    state_ = ST_ERROR;
+    EmitState(old_state, state_);
     return;
   }
 
-  dc->abort_motion = false;
-  dc->current_angle = dc->last_commanded_angle;
-  DeviceState o = dc->state;
-  dc->state = ST_IDLE;
-  dc->last_error = ERR_NONE;
-  emit_state(dc, o, dc->state);
-  dc->ports.servo_write_angle(dc->ports.ctx, dc->current_angle);
-  dc->last_commanded_angle = dc->current_angle;
-  if (dc->ports.log_ok) {
-    dc->ports.log_ok(dc->ports.ctx, "Reset complete — state IDLE.");
+  abort_motion_ = false;
+  current_angle_ = last_commanded_angle_;
+  const DeviceState old_state = state_;
+  state_ = ST_IDLE;
+  last_error_ = ERR_NONE;
+  EmitState(old_state, state_);
+  ports_.servo_write_angle(ports_.ctx, current_angle_);
+  last_commanded_angle_ = current_angle_;
+  if (ports_.log_ok) {
+    ports_.log_ok(ports_.ctx, "Reset complete — state IDLE.");
   }
 }
 
-void device_api_reserve(DeviceController *dc) {
-  dc->reserved = true;
-  if (dc->ports.emit_reservation) {
-    dc->ports.emit_reservation(dc->ports.ctx, true);
+void DeviceController::Reserve() {
+  reserved_ = true;
+  if (ports_.emit_reservation) {
+    ports_.emit_reservation(ports_.ctx, true);
   }
 }
 
-void device_api_release(DeviceController *dc) {
-  dc->reserved = false;
-  if (dc->ports.emit_reservation) {
-    dc->ports.emit_reservation(dc->ports.ctx, false);
+void DeviceController::Release() {
+  reserved_ = false;
+  if (ports_.emit_reservation) {
+    ports_.emit_reservation(ports_.ctx, false);
   }
 }
 
-DeviceStatus device_get_status(const DeviceController *dc) {
-  DeviceStatus st;
-  st.state = dc->state;
-  st.last_error = dc->last_error;
-  st.reserved = dc->reserved;
-  st.motion_time_ms = dc->last_motion_duration_ms;
-  st.last_evt_old = dc->last_evt_old;
-  st.last_evt_new = dc->last_evt_new;
+DeviceStatus DeviceController::GetStatus() const {
+  DeviceStatus st{};
+  st.state = state_;
+  st.last_error = last_error_;
+  st.reserved = reserved_;
+  st.motion_time_ms = last_motion_duration_ms_;
+  st.last_evt_old = last_evt_old_;
+  st.last_evt_new = last_evt_new_;
   return st;
 }
 
-void device_on_estop(DeviceController *dc) {
-  if (!dc->ports.estop_asserted) return;
-  if (!dc->ports.estop_asserted(dc->ports.ctx)) return;
+void DeviceController::OnEstop() {
+  if (!ports_.estop_asserted) return;
+  if (!ports_.estop_asserted(ports_.ctx)) return;
 
-  if (dc->state == ST_ERROR && dc->last_error == ERR_ESTOP) return;
+  if (state_ == ST_ERROR && last_error_ == ERR_ESTOP) return;
 
-  dc->abort_motion = true;
-  dc->current_angle = dc->last_commanded_angle;
+  abort_motion_ = true;
+  current_angle_ = last_commanded_angle_;
 
-  if (dc->ports.log_err) {
-    dc->ports.log_err(dc->ports.ctx, ERR_ESTOP, dc->state, "E-stop", nullptr);
+  if (ports_.log_err) {
+    ports_.log_err(ports_.ctx, ERR_ESTOP, state_, "E-stop", nullptr);
   }
 
-  DeviceState o = dc->state;
-  dc->last_error = ERR_ESTOP;
-  dc->state = ST_ERROR;
-  emit_state(dc, o, dc->state);
+  const DeviceState old_state = state_;
+  last_error_ = ERR_ESTOP;
+  state_ = ST_ERROR;
+  EmitState(old_state, state_);
 }
 

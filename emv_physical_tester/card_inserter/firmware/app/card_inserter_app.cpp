@@ -36,16 +36,16 @@ void cardInserterApp_setup() {
   DevicePorts ports;
   device_arduino_presenter_bind_device_ports(&ports, DEBUG_ERR_CHAR_MS);
 
-  device_init(&g_dc, &cfg, &ports);
+  g_dc.Init(cfg, ports);
 
   // If E-stop is already asserted at boot, enter ERROR immediately.
-  device_on_estop(&g_dc);
+  g_dc.OnEstop();
 
   Serial.println(F("// Buttons ~ REST: INSERT HOME REMOVE ABORT RESET; STATUS EVENTS; RESERVE RELEASE; E-STOP"));
 }
 
 void cardInserterApp_loop() {
-  device_on_estop(&g_dc);
+  g_dc.OnEstop();
   device_wokwi_buttons_poll(&g_dc, DEFAULT_DEPTH_MM, DEFAULT_SPEED_MM_S);
 }
 

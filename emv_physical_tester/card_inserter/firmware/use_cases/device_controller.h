@@ -5,40 +5,55 @@
 #include "../domain/device_types.h"
 #include "../ports/device_ports.h"
 
-typedef struct DeviceController {
-  DeviceConfig cfg;
-  DevicePorts ports;
+class DeviceController {
+ public:
+  DeviceController() = default;
 
-  DeviceState state;
-  ErrCode last_error;
-  bool reserved;
+  void Init(const DeviceConfig& cfg, const DevicePorts& ports);
 
-  bool abort_motion;
-  int current_angle;
-  int last_commanded_angle;
-  uint32_t motion_start_ms;
-  uint32_t last_motion_duration_ms;
+  // Use-cases / inbound boundary.
+  void Home();
+  void Insert(int depth_mm, int speed_mm_s);
+  void Remove();
+  void Abort();
+  void Reset();
+  void Reserve();
+  void Release();
 
-  DeviceState last_evt_old;
-  DeviceState last_evt_new;
-} DeviceController;
+  DeviceStatus GetStatus() const;
 
-void device_init(DeviceController *dc, const DeviceConfig *cfg,
-                 const DevicePorts *ports);
+  // Hook for framework to notify the core about E-stop changes.
+  // Call this at the top of the main loop; it will move the device into ERROR
+  // (ERR_ESTOP) exactly once per assertion.
+  void OnEstop();
 
-// **Use-cases / inbound boundary**
-void device_api_home(DeviceController *dc);
-void device_api_insert(DeviceController *dc, int depth_mm, int speed_mm_s);
-void device_api_remove(DeviceController *dc);
-void device_api_abort(DeviceController *dc);
-void device_api_reset(DeviceController *dc);
-void device_api_reserve(DeviceController *dc);
-void device_api_release(DeviceController *dc);
+ private:
+  static int DepthToAngle(const DeviceConfig& cfg, int depth_mm);
+  static int SpeedToDelayMs(const DeviceConfig& cfg, int speed_mm_s);
 
-DeviceStatus device_get_status(const DeviceController *dc);
+  void EmitState(DeviceState old_s, DeviceState new_s);
+  void Reject(ErrCode e, const char* cmd, const char* detail);
+  void Fault(ErrCode e, const char* cmd, const char* detail);
+  void FinishUserAbort();
+  void RampAbortable(int from_angle, int to_angle, int steps, int delay_ms);
+  void MoveSegmentedAbortable(int from_angle, int to_angle, int fast_steps,
+                              int fast_delay_ms, int slow_steps,
+                              int slow_delay_ms);
 
-// Hook for framework to notify the core about E-stop changes.
-// Call this at the top of the main loop; it will move the device into ERROR
-// (ERR_ESTOP) exactly once per assertion.
-void device_on_estop(DeviceController *dc);
+  DeviceConfig cfg_{};
+  DevicePorts ports_{};
+
+  DeviceState state_ = ST_BOOTING;
+  ErrCode last_error_ = ERR_NONE;
+  bool reserved_ = false;
+
+  bool abort_motion_ = false;
+  int current_angle_ = 0;
+  int last_commanded_angle_ = 0;
+  uint32_t motion_start_ms_ = 0;
+  uint32_t last_motion_duration_ms_ = 0;
+
+  DeviceState last_evt_old_ = ST_BOOTING;
+  DeviceState last_evt_new_ = ST_BOOTING;
+};
 

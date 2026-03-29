@@ -1,6 +1,12 @@
 #include "device_arduino_presenter.h"
 
+#include <Servo.h>
 #include <avr/pgmspace.h>
+
+#include "device_board_pins.h"
+
+static Servo s_servo;
+static uint16_t s_err_msg_char_ms;
 
 const char *device_state_name(DeviceState s) {
   switch (s) {
@@ -123,3 +129,75 @@ void device_serial_print_last_event(DeviceState old_s, DeviceState new_s) {
   Serial.println(F("\"}"));
 }
 
+namespace {
+
+bool port_estop_asserted(void *ctx) {
+  (void)ctx;
+  return digitalRead(PIN_ESTOP) == LOW;
+}
+
+void port_servo_write(void *ctx, int angle) {
+  (void)ctx;
+  s_servo.write(angle);
+}
+
+void port_delay_ms(void *ctx, uint16_t ms) {
+  (void)ctx;
+  delay(ms);
+}
+
+uint32_t port_now_ms(void *ctx) {
+  (void)ctx;
+  return static_cast<uint32_t>(millis());
+}
+
+void port_emit_state_changed(void *ctx, DeviceState old_s, DeviceState new_s) {
+  (void)ctx;
+  device_serial_emit_state_changed(old_s, new_s);
+}
+
+void port_emit_reservation(void *ctx, bool acquired) {
+  (void)ctx;
+  device_serial_emit_reservation(acquired);
+}
+
+void port_log_cmd(void *ctx, const char *line) {
+  (void)ctx;
+  device_serial_log_cmd(line);
+}
+
+void port_log_ok(void *ctx, const char *line) {
+  (void)ctx;
+  device_serial_log_ok(line);
+}
+
+void port_log_err(void *ctx, ErrCode e, DeviceState current_state,
+                  const char *command_label, const char *detail_override) {
+  (void)ctx;
+  device_serial_log_err_typed(e, current_state, command_label, detail_override,
+                              s_err_msg_char_ms);
+}
+
+}  // namespace
+
+void device_arduino_hw_init(uint32_t serial_baud, int servo_pwm_pin,
+                            int initial_angle_deg) {
+  Serial.begin(serial_baud);
+  s_servo.attach(servo_pwm_pin);
+  s_servo.write(initial_angle_deg);
+}
+
+void device_arduino_presenter_bind_device_ports(DevicePorts *out,
+                                                uint16_t err_msg_char_ms) {
+  s_err_msg_char_ms = err_msg_char_ms;
+  out->ctx = nullptr;
+  out->estop_asserted = port_estop_asserted;
+  out->servo_write_angle = port_servo_write;
+  out->delay_ms = port_delay_ms;
+  out->now_ms = port_now_ms;
+  out->emit_state_changed = port_emit_state_changed;
+  out->emit_reservation = port_emit_reservation;
+  out->log_cmd = port_log_cmd;
+  out->log_ok = port_log_ok;
+  out->log_err = port_log_err;
+}

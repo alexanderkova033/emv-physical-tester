@@ -4,8 +4,8 @@
 
 #include <cstdint>
 
-#include "../domain/device_types.h"
-#include "../ports/device_ports.h"
+#include "device_ports.h"
+#include "device_types.h"
 
 class DeviceController {
  public:

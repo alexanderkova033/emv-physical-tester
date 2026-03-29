@@ -1,9 +1,9 @@
 #include "card_inserter_app.h"
 
-#include "../adapters/arduino/arduino_board_pins.h"
-#include "../adapters/arduino/arduino_presenter.h"
-#include "../adapters/wokwi/wokwi_buttons.h"
-#include "../use_cases/device_controller.h"
+#include "arduino_board_pins.h"
+#include "arduino_presenter.h"
+#include "device_controller.h"
+#include "wokwi_buttons.h"
 
 // >0 = type error messages one character at a time (Serial Monitor); 0 = print instantly.
 #ifndef DEBUG_ERR_CHAR_MS

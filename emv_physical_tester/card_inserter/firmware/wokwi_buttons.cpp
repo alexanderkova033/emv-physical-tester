@@ -2,8 +2,8 @@
 
 #include <Arduino.h>
 
-#include "../arduino/arduino_board_pins.h"
-#include "../arduino/arduino_presenter.h"
+#include "arduino_board_pins.h"
+#include "arduino_presenter.h"
 
 namespace {
 

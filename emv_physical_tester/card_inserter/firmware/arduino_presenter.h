@@ -3,8 +3,8 @@
 #include <Arduino.h>
 #include <cstdint>
 
-#include "../../domain/device_types.h"
-#include "../../ports/device_ports.h"
+#include "device_ports.h"
+#include "device_types.h"
 
 // Arduino adapter: Serial/protocol presentation and physical I/O that backs DevicePorts
 // (servo PWM, estop GPIO, delay/millis). Keeps PROGMEM + typing-effect behavior out of the core.

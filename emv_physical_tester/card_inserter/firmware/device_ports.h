@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-#include "../domain/device_types.h"
+#include "device_types.h"
 
 struct DevicePorts {
   void* ctx = nullptr;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../use_cases/device_controller.h"
+#include "device_controller.h"
 
 // Input adapter: Wokwi “REST buttons” map GPIO edges to device use-cases + Serial presenter.
 // Keeps the app composition root free of button↔controller wiring.

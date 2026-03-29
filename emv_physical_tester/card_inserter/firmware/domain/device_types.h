@@ -12,31 +12,31 @@ enum DeviceState {
   ST_INSERTING,
   ST_INSERTED,
   ST_REMOVING,
-  ST_ERROR
+  ST_ERROR,
 };
 
 enum ErrCode {
   ERR_NONE = 0,
   ERR_ILLEGAL_STATE,
   ERR_HOME_FAILED,
-  ERR_ESTOP
+  ERR_ESTOP,
 };
 
 struct DeviceConfig {
-  int angle_home;
-  int angle_remove;
-  int angle_insert;
-  int max_depth_mm;
-  int default_depth_mm;
-  int default_speed_mm_s;
+  int angle_home = 0;
+  int angle_remove = 0;
+  int angle_insert = 0;
+  int max_depth_mm = 0;
+  int default_depth_mm = 0;
+  int default_speed_mm_s = 0;
 };
 
 struct DeviceStatus {
-  DeviceState state;
-  ErrCode last_error;
-  bool reserved;
-  std::uint32_t motion_time_ms;
-  DeviceState last_evt_old;
-  DeviceState last_evt_new;
+  DeviceState state = ST_BOOTING;
+  ErrCode last_error = ERR_NONE;
+  bool reserved = false;
+  std::uint32_t motion_time_ms = 0;
+  DeviceState last_evt_old = ST_BOOTING;
+  DeviceState last_evt_new = ST_BOOTING;
 };
 

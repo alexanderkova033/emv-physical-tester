@@ -10,30 +10,40 @@
 #define DEBUG_ERR_CHAR_MS 12
 #endif
 
-// Servo angles (degrees): full retract reference vs. retract-after-remove.
-static const int ANGLE_HOME = 0;
-static const int ANGLE_REMOVE = 30;
-static const int ANGLE_INSERT = 152;
-static const int MAX_DEPTH_MM = 50;
-static const int DEFAULT_DEPTH_MM = 35;
-static const int DEFAULT_SPEED_MM_S = 20;
+namespace {
 
-static DeviceController g_dc;
+// Servo angles (degrees): full retract reference vs. retract-after-remove.
+constexpr int kAngleHome = 0;
+constexpr int kAngleRemove = 30;
+constexpr int kAngleInsert = 152;
+
+constexpr int kMaxDepthMm = 50;
+constexpr int kDefaultDepthMm = 35;
+constexpr int kDefaultSpeedMmS = 20;
+
+DeviceController g_dc;
+
+DeviceConfig MakeDeviceConfig() {
+  DeviceConfig cfg{};
+  cfg.angle_home = kAngleHome;
+  cfg.angle_remove = kAngleRemove;
+  cfg.angle_insert = kAngleInsert;
+  cfg.max_depth_mm = kMaxDepthMm;
+  cfg.default_depth_mm = kDefaultDepthMm;
+  cfg.default_speed_mm_s = kDefaultSpeedMmS;
+  return cfg;
+}
+
+}  // namespace
 
 void cardInserterApp_setup() {
-  device_arduino_hw_init(9600, PIN_SERVO_PWM, ANGLE_HOME);
+  device_arduino_hw_init(9600, PIN_SERVO_PWM, kAngleHome);
 
   device_wokwi_buttons_setup_pinmodes();
 
-  DeviceConfig cfg;
-  cfg.angle_home = ANGLE_HOME;
-  cfg.angle_remove = ANGLE_REMOVE;
-  cfg.angle_insert = ANGLE_INSERT;
-  cfg.max_depth_mm = MAX_DEPTH_MM;
-  cfg.default_depth_mm = DEFAULT_DEPTH_MM;
-  cfg.default_speed_mm_s = DEFAULT_SPEED_MM_S;
+  const DeviceConfig cfg = MakeDeviceConfig();
 
-  DevicePorts ports;
+  DevicePorts ports{};
   device_arduino_presenter_bind_device_ports(&ports, DEBUG_ERR_CHAR_MS);
 
   g_dc.Init(cfg, ports);
@@ -46,6 +56,6 @@ void cardInserterApp_setup() {
 
 void cardInserterApp_loop() {
   g_dc.OnEstop();
-  device_wokwi_buttons_poll(&g_dc, DEFAULT_DEPTH_MM, DEFAULT_SPEED_MM_S);
+  device_wokwi_buttons_poll(&g_dc, kDefaultDepthMm, kDefaultSpeedMmS);
 }
 

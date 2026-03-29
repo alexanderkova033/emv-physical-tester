@@ -5,17 +5,29 @@
 #include "../arduino/arduino_board_pins.h"
 #include "../arduino/arduino_presenter.h"
 
-static int s_prevInsert = HIGH;
-static int s_prevHome = HIGH;
-static int s_prevRemove = HIGH;
-static int s_prevStatus = HIGH;
-static int s_prevAbort = HIGH;
-static int s_prevReset = HIGH;
-static int s_prevEvents = HIGH;
-static int s_prevReserve = HIGH;
-static int s_prevRelease = HIGH;
+namespace {
 
-static bool estop_asserted(void) { return digitalRead(PIN_ESTOP) == LOW; }
+struct ButtonPrevState {
+  int insert = HIGH;
+  int home = HIGH;
+  int remove = HIGH;
+  int status = HIGH;
+  int abort = HIGH;
+  int reset = HIGH;
+  int events = HIGH;
+  int reserve = HIGH;
+  int release = HIGH;
+};
+
+ButtonPrevState g_prev{};
+
+inline bool RisingEdgePressed(int current_level, int previous_level) {
+  return (current_level == LOW) && (previous_level == HIGH);
+}
+
+inline bool EstopAsserted() { return digitalRead(PIN_ESTOP) == LOW; }
+
+}  // namespace
 
 void device_wokwi_buttons_setup_pinmodes(void) {
   pinMode(PIN_INSERT, INPUT_PULLUP);
@@ -42,26 +54,26 @@ void device_wokwi_buttons_poll(DeviceController *dc, int default_depth_mm,
   const int res = digitalRead(PIN_RESERVE);
   const int rel = digitalRead(PIN_RELEASE);
 
-  if (st == LOW && s_prevStatus == HIGH) {
+  if (RisingEdgePressed(st, g_prev.status)) {
     device_serial_log_cmd("GET /api/status");
     DeviceStatus s = dc->GetStatus();
     device_serial_print_status(&s);
   }
-  if (ev == LOW && s_prevEvents == HIGH) {
+  if (RisingEdgePressed(ev, g_prev.events)) {
     device_serial_log_cmd("GET /api/events (last STATE_CHANGED)");
     DeviceStatus s = dc->GetStatus();
     device_serial_print_last_event(s.last_evt_old, s.last_evt_new);
   }
-  if (res == LOW && s_prevReserve == HIGH) {
+  if (RisingEdgePressed(res, g_prev.reserve)) {
     device_serial_log_cmd("POST /api/reserve");
     dc->Reserve();
   }
-  if (rel == LOW && s_prevRelease == HIGH) {
+  if (RisingEdgePressed(rel, g_prev.release)) {
     device_serial_log_cmd("POST /api/release");
     dc->Release();
   }
 
-  if (ab == LOW && s_prevAbort == HIGH) {
+  if (RisingEdgePressed(ab, g_prev.abort)) {
     device_serial_log_cmd("POST /api/abort");
     const DeviceStatus s = dc->GetStatus();
     if (s.state != ST_INSERTING && s.state != ST_REMOVING && s.state != ST_HOMING) {
@@ -71,34 +83,34 @@ void device_wokwi_buttons_poll(DeviceController *dc, int default_depth_mm,
       Serial.println(F("[CMD]        motion stop requested"));
     }
   }
-  if (rst == LOW && s_prevReset == HIGH) {
+  if (RisingEdgePressed(rst, g_prev.reset)) {
     device_serial_log_cmd("POST /api/reset");
     dc->Reset();
   }
 
-  if (!estop_asserted()) {
-    if (ins == LOW && s_prevInsert == HIGH) {
+  if (!EstopAsserted()) {
+    if (RisingEdgePressed(ins, g_prev.insert)) {
       device_serial_log_cmd("POST /api/insert");
       dc->Insert(default_depth_mm, default_speed_mm_s);
     }
-    if (hom == LOW && s_prevHome == HIGH) {
+    if (RisingEdgePressed(hom, g_prev.home)) {
       device_serial_log_cmd("POST /api/home");
       dc->Home();
     }
-    if (rem == LOW && s_prevRemove == HIGH) {
+    if (RisingEdgePressed(rem, g_prev.remove)) {
       device_serial_log_cmd("POST /api/remove");
       dc->Remove();
     }
   }
 
-  s_prevInsert = ins;
-  s_prevHome = hom;
-  s_prevRemove = rem;
-  s_prevStatus = st;
-  s_prevAbort = ab;
-  s_prevReset = rst;
-  s_prevEvents = ev;
-  s_prevReserve = res;
-  s_prevRelease = rel;
+  g_prev.insert = ins;
+  g_prev.home = hom;
+  g_prev.remove = rem;
+  g_prev.status = st;
+  g_prev.abort = ab;
+  g_prev.reset = rst;
+  g_prev.events = ev;
+  g_prev.reserve = res;
+  g_prev.release = rel;
 }
 

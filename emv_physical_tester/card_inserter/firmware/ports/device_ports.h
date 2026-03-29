@@ -8,20 +8,22 @@
 #include "../domain/device_types.h"
 
 struct DevicePorts {
-  void* ctx;
+  void* ctx = nullptr;
 
   // **Hardware/OS**
-  bool (*estop_asserted)(void* ctx);
-  void (*servo_write_angle)(void* ctx, int angle);
-  void (*delay_ms)(void* ctx, std::uint16_t ms);
-  std::uint32_t (*now_ms)(void* ctx);
+  bool (*estop_asserted)(void* ctx) = nullptr;
+  void (*servo_write_angle)(void* ctx, int angle) = nullptr;
+  void (*delay_ms)(void* ctx, std::uint16_t ms) = nullptr;
+  std::uint32_t (*now_ms)(void* ctx) = nullptr;
 
   // **Presentation/logging**
-  void (*emit_state_changed)(void* ctx, DeviceState old_s, DeviceState new_s);
-  void (*emit_reservation)(void* ctx, bool acquired);
-  void (*log_cmd)(void* ctx, const char* line);
-  void (*log_ok)(void* ctx, const char* line);
+  void (*emit_state_changed)(void* ctx, DeviceState old_s, DeviceState new_s) =
+      nullptr;
+  void (*emit_reservation)(void* ctx, bool acquired) = nullptr;
+  void (*log_cmd)(void* ctx, const char* line) = nullptr;
+  void (*log_ok)(void* ctx, const char* line) = nullptr;
   void (*log_err)(void* ctx, ErrCode e, DeviceState current_state,
-                  const char* command_label, const char* detail_override);
+                  const char* command_label, const char* detail_override) =
+      nullptr;
 };
 

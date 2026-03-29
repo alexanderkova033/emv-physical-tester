@@ -6,10 +6,48 @@
 
 #include "arduino_board_pins.h"
 
-static Servo s_servo;
-static std::uint16_t s_err_msg_char_ms;
+namespace {
 
-const char *device_state_name(DeviceState s) {
+constexpr const char* kReservationOwner = "wokwi";
+
+Servo g_servo;
+std::uint16_t g_err_msg_char_ms = 0;
+
+void TypeFlashMessage(const __FlashStringHelper* msg,
+                      std::uint16_t per_char_ms) {
+  if (msg == nullptr) return;
+
+  PGM_P p = reinterpret_cast<PGM_P>(msg);
+  for (;;) {
+    const std::uint8_t c = pgm_read_byte(p++);
+    if (c == 0) break;
+    Serial.write(c);
+    if (per_char_ms != 0) delay(per_char_ms);
+  }
+}
+
+const __FlashStringHelper* DefaultErrorStory(ErrCode e) {
+  switch (e) {
+    case ERR_ILLEGAL_STATE:
+      return F(
+          "This command is not allowed in the current state. Use the Status button "
+          "(GET /api/status), then follow the normal sequence: Home, Insert, "
+          "Remove, or Reset / Abort as needed.");
+    case ERR_HOME_FAILED:
+      return F("Homing did not finish as expected. Inspect the mechanism and use "
+               "Reset when it is safe.");
+    case ERR_ESTOP:
+      return F(
+          "Emergency stop is asserted. Release the E-stop switch, then press "
+          "Reset if the device stays in ERROR.");
+    default:
+      return F("Unexpected error.");
+  }
+}
+
+}  // namespace
+
+const char* device_state_name(DeviceState s) {
   switch (s) {
     case ST_BOOTING: return "BOOTING";
     case ST_HOMING: return "HOMING";
@@ -22,7 +60,7 @@ const char *device_state_name(DeviceState s) {
   }
 }
 
-const char *device_err_name(ErrCode e) {
+const char* device_err_name(ErrCode e) {
   switch (e) {
     case ERR_NONE: return "NONE";
     case ERR_ILLEGAL_STATE: return "ILLEGAL_STATE";
@@ -32,30 +70,19 @@ const char *device_err_name(ErrCode e) {
   }
 }
 
-static void type_flash(const __FlashStringHelper *msg,
-                       std::uint16_t per_char_ms) {
-  PGM_P p = reinterpret_cast<PGM_P>(msg);
-  for (;;) {
-    std::uint8_t c = pgm_read_byte(p++);
-    if (c == 0) break;
-    Serial.write(c);
-    if (per_char_ms != 0) delay(per_char_ms);
-  }
-}
-
-void device_serial_log_cmd(const char *line) {
+void device_serial_log_cmd(const char* line) {
   Serial.print(F("[CMD] "));
   Serial.println(line);
 }
 
-void device_serial_log_ok(const char *line) {
+void device_serial_log_ok(const char* line) {
   Serial.print(F("[OK]  "));
   Serial.println(line);
 }
 
 void device_serial_log_err_typed(ErrCode e, DeviceState current_state,
-                                 const char *command_label,
-                                 const char *detail_override,
+                                 const char* command_label,
+                                 const char* detail_override,
                                  std::uint16_t per_char_ms) {
   Serial.println(F("[ERR]"));
   Serial.print(F("  error_code: "));
@@ -69,27 +96,7 @@ void device_serial_log_err_typed(ErrCode e, DeviceState current_state,
   if (detail_override) {
     Serial.print(detail_override);
   } else {
-    const __FlashStringHelper *story = F("Unexpected error.");
-    switch (e) {
-      case ERR_ILLEGAL_STATE:
-        story = F(
-            "This command is not allowed in the current state. Use the Status button "
-            "(GET /api/status), then follow the normal sequence: Home, Insert, "
-            "Remove, or Reset / Abort as needed.");
-        break;
-      case ERR_HOME_FAILED:
-        story = F("Homing did not finish as expected. Inspect the mechanism and use "
-                  "Reset when it is safe.");
-        break;
-      case ERR_ESTOP:
-        story = F(
-            "Emergency stop is asserted. Release the E-stop switch, then press "
-            "Reset if the device stays in ERROR.");
-        break;
-      default:
-        break;
-    }
-    type_flash(story, per_char_ms);
+    TypeFlashMessage(DefaultErrorStory(e), per_char_ms);
   }
   Serial.println();
   Serial.println(F("[ERR] end"));
@@ -104,7 +111,9 @@ void device_serial_emit_state_changed(DeviceState old_s, DeviceState new_s) {
 }
 
 void device_serial_emit_reservation(bool acquired) {
-  Serial.print(F("data: {\"type\":\"RESERVATION\",\"owner\":\"wokwi\",\"action\":\""));
+  Serial.print(F("data: {\"type\":\"RESERVATION\",\"owner\":\""));
+  Serial.print(kReservationOwner);
+  Serial.print(F("\",\"action\":\""));
   Serial.print(acquired ? F("ACQUIRED") : F("RELEASED"));
   Serial.println(F("\"}"));
 }
@@ -124,11 +133,7 @@ void device_serial_print_status(const DeviceStatus *st) {
 }
 
 void device_serial_print_last_event(DeviceState old_s, DeviceState new_s) {
-  Serial.print(F("data: {\"type\":\"STATE_CHANGED\",\"old_state\":\""));
-  Serial.print(device_state_name(old_s));
-  Serial.print(F("\",\"new_state\":\""));
-  Serial.print(device_state_name(new_s));
-  Serial.println(F("\"}"));
+  device_serial_emit_state_changed(old_s, new_s);
 }
 
 namespace {
@@ -140,7 +145,7 @@ bool port_estop_asserted(void *ctx) {
 
 void port_servo_write(void *ctx, int angle) {
   (void)ctx;
-  s_servo.write(angle);
+  g_servo.write(angle);
 }
 
 void port_delay_ms(void *ctx, std::uint16_t ms) {
@@ -177,7 +182,7 @@ void port_log_err(void *ctx, ErrCode e, DeviceState current_state,
                   const char *command_label, const char *detail_override) {
   (void)ctx;
   device_serial_log_err_typed(e, current_state, command_label, detail_override,
-                              s_err_msg_char_ms);
+                              g_err_msg_char_ms);
 }
 
 }  // namespace
@@ -185,13 +190,13 @@ void port_log_err(void *ctx, ErrCode e, DeviceState current_state,
 void device_arduino_hw_init(std::uint32_t serial_baud, int servo_pwm_pin,
                             int initial_angle_deg) {
   Serial.begin(serial_baud);
-  s_servo.attach(servo_pwm_pin);
-  s_servo.write(initial_angle_deg);
+  g_servo.attach(servo_pwm_pin);
+  g_servo.write(initial_angle_deg);
 }
 
 void device_arduino_presenter_bind_device_ports(DevicePorts *out,
                                                 std::uint16_t err_msg_char_ms) {
-  s_err_msg_char_ms = err_msg_char_ms;
+  g_err_msg_char_ms = err_msg_char_ms;
   out->ctx = nullptr;
   out->estop_asserted = port_estop_asserted;
   out->servo_write_angle = port_servo_write;

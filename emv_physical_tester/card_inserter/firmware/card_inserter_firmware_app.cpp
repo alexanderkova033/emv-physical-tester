@@ -51,7 +51,7 @@ void cardInserterApp_setup() {
   // If E-stop is already asserted at boot, enter ERROR immediately.
   g_dc.OnEstop();
 
-  Serial.println(F("// Buttons ~ REST: INSERT HOME REMOVE ABORT RESET; STATUS EVENTS; RESERVE RELEASE; E-STOP"));
+  Serial.println(F("// Buttons ~ REST (MVP): INSERT HOME REMOVE ABORT; STATUS — see protocol spec for full GPIO map"));
 }
 
 void cardInserterApp_loop() {

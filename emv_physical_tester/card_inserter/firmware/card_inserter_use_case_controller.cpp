@@ -1,5 +1,7 @@
 #include "card_inserter_use_case_controller.h"
 
+#include <stdio.h>
+
 namespace {
 inline int clamp_int(int v, int lo, int hi) {
   if (v < lo) return lo;
@@ -68,10 +70,25 @@ void DeviceController::FinishUserAbort() {
 void DeviceController::RampAbortable(int from_angle, int to_angle, int steps,
                                      int delay_ms) {
   if (from_angle == to_angle || steps <= 0) return;
+  if (ports_.log_trace) {
+    char buf[96];
+    snprintf(buf, sizeof(buf),
+             "begin from_angle=%d to_angle=%d steps=%d delay_ms=%d",
+             from_angle, to_angle, steps, delay_ms);
+    ports_.log_trace(ports_.ctx, buf);
+  }
   const float delta = static_cast<float>(to_angle - from_angle);
   for (int i = 0; i <= steps; i++) {
-    if (abort_motion_ ||
-        (ports_.estop_asserted && ports_.estop_asserted(ports_.ctx))) {
+    const bool estop =
+        ports_.estop_asserted && ports_.estop_asserted(ports_.ctx);
+    if (abort_motion_ || estop) {
+      if (ports_.log_trace) {
+        char buf[112];
+        snprintf(buf, sizeof(buf),
+                 "exit early i=%d last_commanded_angle=%d reason=%s",
+                 i, last_commanded_angle_, estop ? "estop" : "abort");
+        ports_.log_trace(ports_.ctx, buf);
+      }
       return;
     }
     const int angle =
@@ -79,7 +96,18 @@ void DeviceController::RampAbortable(int from_angle, int to_angle, int steps,
         static_cast<int>(delta * i / static_cast<float>(steps) + 0.5f);
     ports_.servo_write_angle(ports_.ctx, angle);
     last_commanded_angle_ = angle;
+    if (ports_.log_trace) {
+      char buf[96];
+      snprintf(buf, sizeof(buf), "step i=%d/%d angle=%d delay_ms=%d", i, steps,
+               angle, delay_ms);
+      ports_.log_trace(ports_.ctx, buf);
+    }
     ports_.delay_ms(ports_.ctx, static_cast<uint16_t>(delay_ms));
+  }
+  if (ports_.log_trace) {
+    char buf[96];
+    snprintf(buf, sizeof(buf), "complete last_angle=%d", last_commanded_angle_);
+    ports_.log_trace(ports_.ctx, buf);
   }
 }
 

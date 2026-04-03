@@ -4,11 +4,14 @@
 #include <avr/pgmspace.h>
 #include <stdint.h>
 
+#include "button_board_input_adapter.h"
 #include "button_board_pins.h"
 
 namespace {
 
 constexpr const char* kReservationOwner = "button_board";
+
+DeviceController *s_motion_poll_dc = nullptr;
 
 Servo g_servo;
 uint16_t g_err_msg_char_ms = 0;
@@ -150,7 +153,21 @@ void port_servo_write(void *ctx, int angle) {
 
 void port_delay_ms(void *ctx, uint16_t ms) {
   (void)ctx;
-  delay(ms);
+  // Chunk delays so HOMING / INSERTING / REMOVING can see abort / status / E-stop while ramping.
+  constexpr uint16_t kSlice = 10;
+  while (ms >= kSlice) {
+    delay(kSlice);
+    ms -= kSlice;
+    if (s_motion_poll_dc != nullptr) {
+      device_button_board_poll_during_motion(s_motion_poll_dc);
+    }
+  }
+  if (ms > 0) {
+    delay(ms);
+  }
+  if (s_motion_poll_dc != nullptr) {
+    device_button_board_poll_during_motion(s_motion_poll_dc);
+  }
 }
 
 uint32_t port_now_ms(void *ctx) {
@@ -185,6 +202,13 @@ void port_log_err(void *ctx, ErrCode e, DeviceState current_state,
                               g_err_msg_char_ms);
 }
 
+void port_log_trace(void *ctx, const char *line) {
+  (void)ctx;
+  if (line == nullptr) return;
+  Serial.print(F("[RAMP] "));
+  Serial.println(line);
+}
+
 }  // namespace
 
 void device_arduino_hw_init(uint32_t serial_baud, int servo_pwm_pin,
@@ -195,8 +219,10 @@ void device_arduino_hw_init(uint32_t serial_baud, int servo_pwm_pin,
 }
 
 void device_arduino_presenter_bind_device_ports(DevicePorts *out,
-                                                uint16_t err_msg_char_ms) {
+                                                uint16_t err_msg_char_ms,
+                                                DeviceController *motion_poll_dc) {
   g_err_msg_char_ms = err_msg_char_ms;
+  s_motion_poll_dc = motion_poll_dc;
   out->ctx = nullptr;
   out->estop_asserted = port_estop_asserted;
   out->servo_write_angle = port_servo_write;
@@ -207,5 +233,6 @@ void device_arduino_presenter_bind_device_ports(DevicePorts *out,
   out->log_cmd = port_log_cmd;
   out->log_ok = port_log_ok;
   out->log_err = port_log_err;
+  out->log_trace = port_log_trace;
 }
 

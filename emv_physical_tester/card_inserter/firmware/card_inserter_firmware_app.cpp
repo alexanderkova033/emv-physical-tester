@@ -44,7 +44,7 @@ void cardInserterApp_setup() {
   const DeviceConfig cfg = MakeDeviceConfig();
 
   DevicePorts ports{};
-  device_arduino_presenter_bind_device_ports(&ports, DEBUG_ERR_CHAR_MS);
+  device_arduino_presenter_bind_device_ports(&ports, DEBUG_ERR_CHAR_MS, &g_dc);
 
   g_dc.Init(cfg, ports);
 

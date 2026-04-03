@@ -8,4 +8,5 @@
 void device_button_board_setup_pinmodes(void);
 void device_button_board_poll(DeviceController* dc, int default_depth_mm,
                                int default_speed_mm_s);
+void device_button_board_poll_during_motion(DeviceController* dc);
 

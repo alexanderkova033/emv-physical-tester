@@ -23,25 +23,7 @@ inline bool RisingEdgePressed(int current_level, int previous_level) {
 
 inline bool EstopAsserted() { return digitalRead(PIN_ESTOP) == LOW; }
 
-}  // namespace
-
-void device_button_board_setup_pinmodes(void) {
-  pinMode(PIN_INSERT, INPUT_PULLUP);
-  pinMode(PIN_HOME, INPUT_PULLUP);
-  pinMode(PIN_REMOVE, INPUT_PULLUP);
-  pinMode(PIN_STATUS, INPUT_PULLUP);
-  pinMode(PIN_ABORT, INPUT_PULLUP);
-  pinMode(PIN_ESTOP, INPUT_PULLUP);
-}
-
-void device_button_board_poll(DeviceController *dc, int default_depth_mm,
-                               int default_speed_mm_s) {
-  const int ins = digitalRead(PIN_INSERT);
-  const int hom = digitalRead(PIN_HOME);
-  const int rem = digitalRead(PIN_REMOVE);
-  const int st = digitalRead(PIN_STATUS);
-  const int ab = digitalRead(PIN_ABORT);
-
+void PollStatusAbortEdges(DeviceController *dc, int st, int ab) {
   if (RisingEdgePressed(st, g_prev.status)) {
     device_serial_log_cmd("GET /api/status");
     DeviceStatus s = dc->GetStatus();
@@ -58,6 +40,37 @@ void device_button_board_poll(DeviceController *dc, int default_depth_mm,
       Serial.println(F("[CMD]        motion stop requested"));
     }
   }
+
+  g_prev.status = st;
+  g_prev.abort = ab;
+}
+
+}  // namespace
+
+void device_button_board_setup_pinmodes(void) {
+  pinMode(PIN_INSERT, INPUT_PULLUP);
+  pinMode(PIN_HOME, INPUT_PULLUP);
+  pinMode(PIN_REMOVE, INPUT_PULLUP);
+  pinMode(PIN_STATUS, INPUT_PULLUP);
+  pinMode(PIN_ABORT, INPUT_PULLUP);
+  pinMode(PIN_ESTOP, INPUT_PULLUP);
+}
+
+void device_button_board_poll_during_motion(DeviceController *dc) {
+  dc->OnEstop();
+  const int st = digitalRead(PIN_STATUS);
+  const int ab = digitalRead(PIN_ABORT);
+  PollStatusAbortEdges(dc, st, ab);
+}
+
+void device_button_board_poll(DeviceController *dc, int default_depth_mm,
+                               int default_speed_mm_s) {
+  const int ins = digitalRead(PIN_INSERT);
+  const int hom = digitalRead(PIN_HOME);
+  const int rem = digitalRead(PIN_REMOVE);
+  const int st = digitalRead(PIN_STATUS);
+  const int ab = digitalRead(PIN_ABORT);
+  PollStatusAbortEdges(dc, st, ab);
 
   if (!EstopAsserted()) {
     if (RisingEdgePressed(ins, g_prev.insert)) {
@@ -77,6 +90,4 @@ void device_button_board_poll(DeviceController *dc, int default_depth_mm,
   g_prev.insert = ins;
   g_prev.home = hom;
   g_prev.remove = rem;
-  g_prev.status = st;
-  g_prev.abort = ab;
 }

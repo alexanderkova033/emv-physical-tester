@@ -185,6 +185,13 @@ void port_log_err(void *ctx, ErrCode e, DeviceState current_state,
                               g_err_msg_char_ms);
 }
 
+void port_log_trace(void *ctx, const char *line) {
+  (void)ctx;
+  if (line == nullptr) return;
+  Serial.print(F("[RAMP] "));
+  Serial.println(line);
+}
+
 }  // namespace
 
 void device_arduino_hw_init(uint32_t serial_baud, int servo_pwm_pin,
@@ -207,5 +214,6 @@ void device_arduino_presenter_bind_device_ports(DevicePorts *out,
   out->log_cmd = port_log_cmd;
   out->log_ok = port_log_ok;
   out->log_err = port_log_err;
+  out->log_trace = port_log_trace;
 }
 

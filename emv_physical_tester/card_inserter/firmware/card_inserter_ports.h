@@ -25,5 +25,6 @@ struct DevicePorts {
   void (*log_err)(void* ctx, ErrCode e, DeviceState current_state,
                   const char* command_label, const char* detail_override) =
       nullptr;
+  void (*log_trace)(void* ctx, const char* line) = nullptr;
 };
 

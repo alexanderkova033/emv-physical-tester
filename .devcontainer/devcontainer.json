@@ -15,7 +15,8 @@
         "ms-vscode.cpptools",
         "ms-vscode.cmake-tools",
         "twxs.cmake",
-        "fwcd.kotlin"
+        "fwcd.kotlin",
+        "mhutchie.git-graph"
       ]
     }
   },

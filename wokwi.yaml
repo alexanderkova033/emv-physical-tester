@@ -1,4 +1,0 @@
-version: 1
-editor: wokwi
-firmware: .pio/build/esp32dev/firmware.bin
-diagram: emulator/diagram_esp32.json

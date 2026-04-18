@@ -2,7 +2,7 @@
 #include "esp32_pins.h"
 
 #include <Arduino.h>
-#include <Servo.h>
+#include <ESP32Servo.h>
 #include <WebServer.h>
 
 namespace {
@@ -115,6 +115,23 @@ const char* device_err_name(ErrCode e) {
         case ERR_ESTOP:         return "ESTOP_ASSERTED";
         default:                return "INTERNAL_ERROR";
     }
+}
+
+void device_serial_log_cmd(const char* line) {
+    Serial.print(F("[CMD] "));
+    Serial.println(line);
+}
+
+void device_serial_print_status(const DeviceStatus* st) {
+    Serial.print(F("{\"status\":\"OK\",\"state\":\""));
+    Serial.print(device_state_name(st->state));
+    Serial.print(F("\",\"last_error_code\":\""));
+    Serial.print(device_err_name(st->last_error));
+    Serial.print(F("\",\"last_error_message\":\"NONE\",\"protocol_version\":1,"));
+    Serial.print(F("\"min_compatible_protocol_version\":1,\"features\":[\"RESET\"],"));
+    Serial.print(F("\"motion_time_ms\":"));
+    Serial.print(st->motion_time_ms);
+    Serial.println(F("}"));
 }
 
 void esp32_hw_init(uint32_t serial_baud, int servo_pin, int initial_angle) {

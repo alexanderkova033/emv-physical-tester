@@ -25,7 +25,7 @@ int err_to_http(ErrCode e) {
 
 void send_action(int http_code, const DeviceStatus& st, bool ok,
                  JsonVariant id = JsonVariant()) {
-    StaticJsonDocument<384> doc;
+    JsonDocument doc;
     if (!id.isNull()) doc["id"] = id;
     doc["status"] = ok ? "OK" : "ERROR";
     doc["state"]  = device_state_name(st.state);
@@ -40,7 +40,7 @@ void send_action(int http_code, const DeviceStatus& st, bool ok,
 }
 
 void send_error_400(const char* error_code, const char* error_message) {
-    StaticJsonDocument<256> doc;
+    JsonDocument doc;
     doc["status"]        = "ERROR";
     doc["state"]         = device_state_name(g_dc->GetStatus().state);
     doc["error_code"]    = error_code;
@@ -60,7 +60,7 @@ void handle_home() {
                       "\"error_message\":\"Method not allowed\"}");
         return;
     }
-    StaticJsonDocument<128> req;
+    JsonDocument req;
     deserializeJson(req, g_server.arg("plain"));
     JsonVariant id = req["id"];
 
@@ -78,14 +78,14 @@ void handle_insert() {
                       "\"error_message\":\"Method not allowed\"}");
         return;
     }
-    StaticJsonDocument<256> req;
+    JsonDocument req;
     DeserializationError err = deserializeJson(req, g_server.arg("plain"));
-    if (err || !req.containsKey("depth_mm")) {
+    if (err || !req["depth_mm"].is<JsonVariant>()) {
         send_error_400("PROTOCOL_ERROR", "depth_mm is required");
         return;
     }
     int depth_mm  = req["depth_mm"];
-    int speed_mm_s = req.containsKey("speed_mm_s")
+    int speed_mm_s = req["speed_mm_s"].is<JsonVariant>()
                      ? (int)req["speed_mm_s"]
                      : g_cfg->default_speed_mm_s;
     JsonVariant id = req["id"];
@@ -113,7 +113,7 @@ void handle_remove() {
                       "\"error_message\":\"Method not allowed\"}");
         return;
     }
-    StaticJsonDocument<128> req;
+    JsonDocument req;
     deserializeJson(req, g_server.arg("plain"));
     JsonVariant id = req["id"];
 
@@ -133,7 +133,7 @@ void handle_status() {
     }
     DeviceStatus st = g_dc->GetStatus();
 
-    StaticJsonDocument<384> doc;
+    JsonDocument doc;
     if (g_server.hasArg("id")) {
         String id_str = g_server.arg("id");
         long id_num = id_str.toInt();
@@ -147,7 +147,7 @@ void handle_status() {
     doc["protocol_version"]              = 1;
     doc["min_compatible_protocol_version"] = 1;
     doc["motion_time_ms"]                = (long)st.motion_time_ms;
-    JsonArray features = doc.createNestedArray("features");
+    JsonArray features = doc["features"].to<JsonArray>();
     features.add("RESET");
 
     String body;
@@ -163,7 +163,7 @@ void handle_abort() {
                       "\"error_message\":\"Method not allowed\"}");
         return;
     }
-    StaticJsonDocument<128> req;
+    JsonDocument req;
     deserializeJson(req, g_server.arg("plain"));
     JsonVariant id = req["id"];
 
@@ -180,7 +180,7 @@ void handle_reset() {
                       "\"error_message\":\"Method not allowed\"}");
         return;
     }
-    StaticJsonDocument<128> req;
+    JsonDocument req;
     deserializeJson(req, g_server.arg("plain"));
     JsonVariant id = req["id"];
 

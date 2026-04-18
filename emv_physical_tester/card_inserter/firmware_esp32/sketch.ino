@@ -1,5 +1,7 @@
+#include "esp32_pins.h"
 #include "esp32_adapter.h"
 #include "esp32_http_app.h"
+#include "button_board_input_adapter.h"
 #include "card_inserter_use_case_controller.h"
 
 namespace {
@@ -40,5 +42,6 @@ void setup() {
 
 void loop() {
     g_dc.OnEstop();
+    device_button_board_poll(&g_dc, kDefaultDepth, kDefaultSpeed);
     esp32_http_loop();
 }

@@ -15,3 +15,5 @@ void esp32_bind_device_ports(DevicePorts* out, WebServer* server_ptr);
 
 const char* device_state_name(DeviceState s);
 const char* device_err_name(ErrCode e);
+void device_serial_log_cmd(const char* line);
+void device_serial_print_status(const DeviceStatus* st);

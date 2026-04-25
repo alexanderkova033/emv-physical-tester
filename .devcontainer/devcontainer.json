@@ -16,7 +16,9 @@
         "ms-vscode.cmake-tools",
         "twxs.cmake",
         "fwcd.kotlin",
-        "mhutchie.git-graph"
+        "mhutchie.git-graph",
+        "Wokwi.wokwi-vscode",
+        "platformio.platformio-ide"
       ]
     }
   },

@@ -2,17 +2,17 @@
 
 #include <Arduino.h>
 
-#include "button_board_pins.h"
-#include "arduino_device_adapter.h"
+#include "esp32_pins.h"
+#include "esp32_adapter.h"
 
 namespace {
 
 struct ButtonPrevState {
   int insert = HIGH;
-  int home = HIGH;
+  int home   = HIGH;
   int remove = HIGH;
   int status = HIGH;
-  int abort = HIGH;
+  int abort  = HIGH;
 };
 
 ButtonPrevState g_prev{};
@@ -23,7 +23,7 @@ inline bool RisingEdgePressed(int current_level, int previous_level) {
 
 inline bool EstopAsserted() { return digitalRead(PIN_ESTOP) == LOW; }
 
-void PollStatusAbortEdges(DeviceController *dc, int st, int ab) {
+void PollStatusAbortEdges(DeviceController* dc, int st, int ab) {
   if (RisingEdgePressed(st, g_prev.status)) {
     device_serial_log_cmd("GET /api/status");
     DeviceStatus s = dc->GetStatus();
@@ -34,7 +34,7 @@ void PollStatusAbortEdges(DeviceController *dc, int st, int ab) {
     device_serial_log_cmd("POST /api/abort");
     const DeviceStatus s = dc->GetStatus();
     if (s.state != ST_INSERTING && s.state != ST_REMOVING && s.state != ST_HOMING) {
-      Serial.println(F("[CMD]        (ignored — not in HOMING / INSERTING / REMOVING)"));
+      Serial.println(F("[CMD]        (ignored — not in motion)"));
     } else {
       dc->Abort();
       Serial.println(F("[CMD]        motion stop requested"));
@@ -42,34 +42,29 @@ void PollStatusAbortEdges(DeviceController *dc, int st, int ab) {
   }
 
   g_prev.status = st;
-  g_prev.abort = ab;
+  g_prev.abort  = ab;
 }
 
 }  // namespace
 
 void device_button_board_setup_pinmodes(void) {
-  pinMode(PIN_INSERT, INPUT_PULLUP);
-  pinMode(PIN_HOME, INPUT_PULLUP);
-  pinMode(PIN_REMOVE, INPUT_PULLUP);
-  pinMode(PIN_STATUS, INPUT_PULLUP);
-  pinMode(PIN_ABORT, INPUT_PULLUP);
-  pinMode(PIN_ESTOP, INPUT_PULLUP);
+  // Pin modes are already set in esp32_hw_init(); this is a no-op here.
 }
 
-void device_button_board_poll_during_motion(DeviceController *dc) {
+void device_button_board_poll_during_motion(DeviceController* dc) {
   dc->OnEstop();
   const int st = digitalRead(PIN_STATUS);
   const int ab = digitalRead(PIN_ABORT);
   PollStatusAbortEdges(dc, st, ab);
 }
 
-void device_button_board_poll(DeviceController *dc, int default_depth_mm,
+void device_button_board_poll(DeviceController* dc, int default_depth_mm,
                                int default_speed_mm_s) {
   const int ins = digitalRead(PIN_INSERT);
   const int hom = digitalRead(PIN_HOME);
   const int rem = digitalRead(PIN_REMOVE);
-  const int st = digitalRead(PIN_STATUS);
-  const int ab = digitalRead(PIN_ABORT);
+  const int st  = digitalRead(PIN_STATUS);
+  const int ab  = digitalRead(PIN_ABORT);
   PollStatusAbortEdges(dc, st, ab);
 
   if (!EstopAsserted()) {
@@ -88,6 +83,6 @@ void device_button_board_poll(DeviceController *dc, int default_depth_mm,
   }
 
   g_prev.insert = ins;
-  g_prev.home = hom;
+  g_prev.home   = hom;
   g_prev.remove = rem;
 }

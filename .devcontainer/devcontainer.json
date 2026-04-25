@@ -1,6 +1,6 @@
 {
   "name": "C++ & Kotlin",
-  "image": "mcr.microsoft.com/devcontainers/cpp:1-ubuntu-24.04",
+  "image": "mcr.microsoft.com/vscode/devcontainers/python:3.10",
   "features": {
     "ghcr.io/devcontainers/features/java:1": {
       "version": "21",

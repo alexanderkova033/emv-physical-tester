@@ -16,6 +16,9 @@
     { "type": "wokwi-text", "id": "lbl_abort",  "top":    0, "left": -160, "attrs": { "text": "Abort  (D23)", "color": "white", "fontSize": "11" } }
   ],
   "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+
     [ "esp:GND.1",  "servo1:GND", "black", [ "v20", "h380" ] ],
     [ "esp:VIN",    "servo1:V+",  "red",   [ "v-20", "h380" ] ],
     [ "esp:D13",    "servo1:PWM", "white",  [ "h40", "v-80", "h340" ] ],

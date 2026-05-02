@@ -33,7 +33,7 @@ void setup() {
     // Bind ports — pass the server so delay_ms pumps handleClient during motion.
     DevicePorts ports{};
     esp32_http_init(&g_dc, &g_cfg, 80);
-    esp32_bind_device_ports(&ports, esp32_http_server());
+    esp32_bind_device_ports(&ports, esp32_http_server(), &g_dc);
     g_dc.Init(g_cfg, ports);
     g_dc.OnEstop();
 

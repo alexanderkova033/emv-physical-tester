@@ -5,7 +5,6 @@
 GET {{host}}/api/status
 
 ### Home
-
 POST {{host}}/api/home
 Content-Type: application/json
 
@@ -21,7 +20,7 @@ Content-Type: application/json
 {
   "id": 2,
   "depth_mm": 40,
-  "speed_mm_s": 20
+  "speed_mm_s": 5
 }
 
 ### Remove

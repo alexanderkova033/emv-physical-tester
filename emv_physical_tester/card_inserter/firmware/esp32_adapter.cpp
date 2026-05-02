@@ -1,5 +1,6 @@
 #include "esp32_adapter.h"
 #include "esp32_pins.h"
+#include "button_board_input_adapter.h"
 
 #include <Arduino.h>
 #include <ESP32Servo.h>
@@ -10,7 +11,8 @@ namespace {
 Servo g_servo;
 
 struct Ctx {
-    WebServer* server;
+    WebServer*        server;
+    DeviceController* dc;
 };
 
 Ctx g_ctx{};
@@ -34,6 +36,7 @@ void port_delay_ms(void* ctx, uint16_t ms) {
     const uint32_t end = millis() + ms;
     while ((int32_t)(end - millis()) > 0) {
         if (c->server) c->server->handleClient();
+        if (c->dc)     device_button_board_poll_during_motion(c->dc);
         delay(1);
     }
 }
@@ -146,8 +149,10 @@ void esp32_hw_init(uint32_t serial_baud, int servo_pin, int initial_angle) {
     g_servo.write(initial_angle);
 }
 
-void esp32_bind_device_ports(DevicePorts* out, WebServer* server_ptr) {
+void esp32_bind_device_ports(DevicePorts* out, WebServer* server_ptr,
+                             DeviceController* dc) {
     g_ctx.server = server_ptr;
+    g_ctx.dc     = dc;
     out->ctx                = &g_ctx;
     out->estop_asserted     = port_estop_asserted;
     out->servo_write_angle  = port_servo_write;

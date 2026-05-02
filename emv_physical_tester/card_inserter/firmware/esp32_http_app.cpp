@@ -147,8 +147,7 @@ void handle_status() {
     doc["protocol_version"]              = 1;
     doc["min_compatible_protocol_version"] = 1;
     doc["motion_time_ms"]                = (long)st.motion_time_ms;
-    JsonArray features = doc["features"].to<JsonArray>();
-    features.add("RESET");
+    doc["features"].to<JsonArray>();
 
     String body;
     serializeJson(doc, body);
@@ -170,24 +169,6 @@ void handle_abort() {
     g_dc->Abort();
     DeviceStatus st = g_dc->GetStatus();
     send_action(200, st, true, id);
-}
-
-void handle_reset() {
-    if (g_server.method() != HTTP_POST) {
-        g_server.send(405, "application/json",
-                      "{\"status\":\"ERROR\",\"state\":\"ERROR\","
-                      "\"error_code\":\"PROTOCOL_ERROR\","
-                      "\"error_message\":\"Method not allowed\"}");
-        return;
-    }
-    JsonDocument req;
-    deserializeJson(req, g_server.arg("plain"));
-    JsonVariant id = req["id"];
-
-    g_dc->Reset();
-    DeviceStatus st = g_dc->GetStatus();
-    bool ok = (st.state == ST_IDLE);
-    send_action(ok ? 200 : err_to_http(st.last_error), st, ok, id);
 }
 
 }  // namespace
@@ -218,7 +199,6 @@ void esp32_http_init(DeviceController* dc, const DeviceConfig* cfg, int port) {
     g_server.on("/api/remove", handle_remove);
     g_server.on("/api/status", handle_status);
     g_server.on("/api/abort",  handle_abort);
-    g_server.on("/api/reset",  handle_reset);
 
     g_server.begin(port);
     Serial.print(F("HTTP server on port "));

@@ -20,7 +20,7 @@ Content-Type: application/json
 
 {
   "id": 2,
-  "depth_mm": 35,
+  "depth_mm": 40,
   "speed_mm_s": 20
 }
 
@@ -40,13 +40,4 @@ Content-Type: application/json
 
 {
   "id": 5
-}
-
-### Reset
-
-POST {{host}}/api/reset
-Content-Type: application/json
-
-{
-  "id": 6
 }

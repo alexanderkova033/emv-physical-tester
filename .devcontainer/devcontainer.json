@@ -18,7 +18,8 @@
         "fwcd.kotlin",
         "mhutchie.git-graph",
         "Wokwi.wokwi-vscode",
-        "platformio.platformio-ide"
+        "platformio.platformio-ide",
+        "humao.rest-client"
       ]
     }
   },

@@ -1,0 +1,42 @@
+@host = http://localhost:8180
+
+### Status
+
+GET {{host}}/api/status
+
+### Home
+POST {{host}}/api/home
+Content-Type: application/json
+
+{
+  "id": 1
+}
+
+### Insert
+
+POST {{host}}/api/insert
+Content-Type: application/json
+
+{
+  "id": 2,
+  "depth_mm": 40,
+  "speed_mm_s": 5
+}
+
+### Remove
+
+POST {{host}}/api/remove
+Content-Type: application/json
+
+{
+  "id": 3
+}
+
+### Abort
+
+POST {{host}}/api/abort
+Content-Type: application/json
+
+{
+  "id": 5
+}

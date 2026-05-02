@@ -1,0 +1,27 @@
+{
+  "name": "C++ & Kotlin",
+  "image": "mcr.microsoft.com/vscode/devcontainers/python:3.10",
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "21",
+      "installGradle": "true",
+      "installMaven": "false"
+    }
+  },
+  "postCreateCommand": "bash -c 'source /usr/local/sdkman/bin/sdkman-init.sh && sdk install kotlin'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake",
+        "fwcd.kotlin",
+        "mhutchie.git-graph",
+        "Wokwi.wokwi-vscode",
+        "platformio.platformio-ide",
+        "humao.rest-client"
+      ]
+    }
+  },
+  "remoteUser": "vscode"
+}

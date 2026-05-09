@@ -18,6 +18,7 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    outputs.upToDateWhen { false }
 }
 
 kotlin {

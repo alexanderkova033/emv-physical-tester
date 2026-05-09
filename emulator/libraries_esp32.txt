@@ -1,5 +1,0 @@
-# Wokwi Library List for ESP32 REST API sketch
-# See https://docs.wokwi.com/guides/libraries
-
-ESP32Servo
-ArduinoJson
